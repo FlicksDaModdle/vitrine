@@ -120,6 +120,14 @@ xcrun --sdk iphoneos clang -target arm64-apple-ios16.0 -dynamiclib -fobjc-arc -O
   -install_name @rpath/SpotifyGlassAppGroups.dylib -o "$GROUPS_DYLIB" "$ROOT/extension/AppGroups/AppGroups.m"
 FILES+=("$GROUPS_DYLIB")
 
+# EXTRA_FILES: more bundles to inject (space-separated paths), such as a Safari extension .appex that
+# cyan puts in PlugIns/. The workflow sets it when its Safari extension box is ticked.
+for extra in ${EXTRA_FILES:-}; do
+  [ -e "$extra" ] || { echo "no such file in EXTRA_FILES: $extra" >&2; exit 1; }
+  echo "==> adding $(basename "$extra")"
+  FILES+=("$extra")
+done
+
 # A key in plist/ replaces Spotify's own of that name, so the Bonjour services Connect discovery
 # (Shared/Connect) browses go in after the ones Spotify lists, and Spotify's own local network wording
 # is kept where it has one.

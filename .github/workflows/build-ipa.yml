@@ -12,6 +12,10 @@ on:
         default: artifacts
         type: choice
         options: [artifacts, filebin, both]
+      safari_extension:
+        description: "Add the Open in Spotify Safari extension (BillyCurtis/OpenSpotifySafariExtension)"
+        default: true
+        type: boolean
 
 env:
   THEOS: ${{ github.workspace }}/theos
@@ -44,6 +48,28 @@ jobs:
           mkdir -p ipa
           curl -fsSL "${{ inputs.ipa_url }}" -o ipa/spotify.ipa
           case "$(file --mime-type -b ipa/spotify.ipa)" in application/zip|application/x-ios-app) ;; *) echo "::error::Not an IPA"; exit 1 ;; esac
+
+      # A prebuilt Safari web extension that sends open.spotify.com pages to the app. Pinned to a commit,
+      # since it is a binary from another repo. Its content script opens spotify://eevee/... links, which
+      # only EeveeSpotify answers, so it is rewritten to Spotify's own spotify:<type>:<id> URIs.
+      - name: Fetch the Open in Spotify Safari extension
+        if: inputs.safari_extension
+        run: |
+          git clone --quiet https://github.com/BillyCurtis/OpenSpotifySafariExtension.git out/safari-ext
+          git -C out/safari-ext checkout --quiet 6523fcd3a45796beb89ce82f3f9ba032c85ae837
+          APPEX="out/safari-ext/OpenSpotifySafariExtension.appex"
+          python3 - "$APPEX/content.js" <<'PY'
+          import sys
+          path = sys.argv[1]
+          src = open(path).read()
+          old = 'window.location.href = "spotify://eevee/" + window.location.host + window.location.pathname'
+          new = ('const p = window.location.pathname.split("/").filter(s => s && !s.startsWith("intl-")); '
+                 'if (p.length >= 2) window.location.href = "spotify:" + p.join(":");')
+          if old not in src:
+              sys.exit("content.js changed upstream; update this step")
+          open(path, "w").write(src.replace(old, new))
+          PY
+          echo "EXTRA_FILES=$PWD/$APPEX" >> "$GITHUB_ENV"
 
       - run: make release
 
