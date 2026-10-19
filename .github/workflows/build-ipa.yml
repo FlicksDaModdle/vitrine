@@ -16,6 +16,11 @@ on:
         description: "Add the Open in Spotify Safari extension (BillyCurtis/OpenSpotifySafariExtension)"
         default: true
         type: boolean
+      bundle_id:
+        description: "Bundle ID to set, matching the App ID of the certificate that signs it (empty keeps com.spotify.client)"
+        default: "app.asparagus7684.aurora3945"
+        required: false
+        type: string
 
 env:
   THEOS: ${{ github.workspace }}/theos
@@ -71,7 +76,11 @@ jobs:
           PY
           echo "EXTRA_FILES=$PWD/$APPEX" >> "$GITHUB_ENV"
 
+      # scripts/pipeline.sh hands BUNDLE_ID to cyan -b, which renames the app and every extension in
+      # PlugIns/ (com.spotify.client.* -> <bundle id>.*), the Safari extension included.
       - run: make release
+        env:
+          BUNDLE_ID: ${{ inputs.bundle_id }}
 
       - uses: actions/upload-artifact@v5
         if: inputs.upload_method != 'filebin'
