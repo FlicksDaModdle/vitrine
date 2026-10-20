@@ -503,6 +503,41 @@ static UIView *selectedSource(SGRSystemTabBar *bar) {
 // a 62 pt platter, a circle as tall as the bar's, per tab plus those insets, and the main bar runs under
 // its leading inset to leave 12 pt of glassless gap between the two platters.
 static const CGFloat kPlatterInset = 21, kApartItemWidth = 62, kPlatterGap = 12;
+// Minimized, the circles are drawn this much smaller than UIKit's 62 pt platter, about their own centers, so
+// they stand as tall as the now playing card between them (NowPlayingBar.x's kCardTrim). A transform, since the
+// platter's height is UIKit's; the bars keep their frames through bounds and center, which a transform leaves.
+static const CGFloat kCircleScale = 0.9;
+static BOOL sg_holdScale;   // setMinimized's own passes: the bars are measured unscaled, and scaled in its spring
+
+// A bar's frame as if it had no transform.
+static CGRect plainFrame(UIView *view) {
+    CGSize size = view.bounds.size;
+    return CGRectMake(view.center.x - size.width / 2, view.center.y - size.height / 2, size.width, size.height);
+}
+
+static void setPlainFrame(UIView *view, CGRect frame) {
+    if (CGRectEqualToRect(plainFrame(view), frame)) return;
+    view.bounds = (CGRect){view.bounds.origin, frame.size};
+    view.center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
+}
+
+// The circle's platter's center in its bar's bounds: kPlatterInset in from the bar's leading side (the main bar) or
+// trailing side (the split bar), at the top.
+static CGAffineTransform circleScale(UIView *bar, BOOL trailing, BOOL on) {
+    if (!on || !bar) return CGAffineTransformIdentity;
+    CGSize size = bar.bounds.size;
+    CGFloat r = kApartItemWidth / 2;
+    CGPoint p = CGPointMake(trailing ? size.width - kPlatterInset - r : kPlatterInset + r, r);
+    CGFloat dx = p.x - size.width / 2, dy = p.y - size.height / 2, k = kCircleScale;
+    return CGAffineTransformMake(k, 0, 0, k, dx * (1 - k), dy * (1 - k));
+}
+
+static void scaleCircles(UIView *stockBar, BOOL minimized) {
+    UIView *bar = objc_getAssociatedObject(stockBar, &kBarKey), *apartBar = objc_getAssociatedObject(stockBar, &kApartBarKey);
+    CGAffineTransform lead = circleScale(bar, NO, minimized), trail = circleScale(apartBar, YES, minimized);
+    if (bar && !CGAffineTransformEqualToTransform(bar.transform, lead)) bar.transform = lead;
+    if (apartBar && !CGAffineTransformEqualToTransform(apartBar.transform, trail)) apartBar.transform = trail;
+}
 
 static void syncBar(UIView *stockBar) {
     sg_stockBar = stockBar;
@@ -576,8 +611,9 @@ static void syncBar(UIView *stockBar) {
         CGRectDivide(host.bounds, &apartFrame, &mainFrame, apartWidth, CGRectMaxXEdge);
         mainFrame.size.width += 2 * kPlatterInset - kPlatterGap;
     }
-    if (!CGRectEqualToRect(bar.frame, mainFrame)) bar.frame = mainFrame;
-    if (apart.count && !CGRectEqualToRect(apartBar.frame, apartFrame)) apartBar.frame = apartFrame;
+    setPlainFrame(bar, mainFrame);
+    if (apart.count) setPlainFrame(apartBar, apartFrame);
+    if (!sg_holdScale) scaleCircles(stockBar, minimized);
 
     // The items go in once the bars are laid out at their frames. UIKit sizes an item's title by the platter it
     // is made in and never again when the bar grows, so items made while a bar was still a circle kept "…" for
@@ -800,6 +836,8 @@ static void setMinimized(BOOL minimized, BOOL animated) {
         syncBar(stockBar);
     };
     animated &= host.window != nil;
+    sg_holdScale = YES;
+    [UIView performWithoutAnimation:^{ scaleCircles(stockBar, NO); }];
     SGRBarState before = animated ? barState(host) : (SGRBarState){0};
     // The items are made where the bars are going, before anything moves. UIKit sizes a tab's name by the platter
     // its item is made in and never again, and the first pass made the expanding row's items while the bar still
@@ -814,13 +852,21 @@ static void setMinimized(BOOL minimized, BOOL animated) {
             syncBar(stockBar);
             [host layoutIfNeeded];
         }
-        if (!animated) SGRNowPlayingBarFollowTabBar();
+        if (!animated) {
+            sg_holdScale = NO;
+            scaleCircles(stockBar, minimized);
+            SGRNowPlayingBarFollowTabBar();
+        }
     }];
     if (!animated) {
         settle(YES);
         return;
     }
-    moveFrom(host, before, ^{ SGRNowPlayingBarFollowTabBar(); }, settle);
+    moveFrom(host, before, ^{
+        sg_holdScale = NO;
+        scaleCircles(stockBar, minimized);
+        SGRNowPlayingBarFollowTabBar();
+    }, settle);
 }
 
 CGRect SGRTabBarInlineSlot(UIView *host, CGFloat height) {
@@ -830,15 +876,17 @@ CGRect SGRTabBarInlineSlot(UIView *host, CGFloat height) {
     if (!sg_minimized || !host || !bar.window || stockBar.hidden || stockBar.alpha < 0.01) return CGRectNull;
     // The frames the bars are going to, not what is on screen mid-spring. Without a split tab's circle the
     // card runs to where the trailing circle's glass would end.
-    CGRect lead = [bar.superview convertRect:bar.frame toView:host];
-    CGFloat left = CGRectGetMinX(lead) + kPlatterInset + kApartItemWidth + SGRGrid;
+    // Untransformed frames, and the circles' edges where their scale about their centers puts them.
+    CGRect lead = [bar.superview convertRect:plainFrame(bar) toView:host];
+    CGFloat inset = kApartItemWidth * (1 - kCircleScale) / 2;
+    CGFloat left = CGRectGetMinX(lead) + kPlatterInset + kApartItemWidth - inset + SGRGrid;
     CGFloat right;
     if (apartBar && !apartBar.hidden) {
-        CGRect trail = [apartBar.superview convertRect:apartBar.frame toView:host];
-        right = CGRectGetMaxX(trail) - kPlatterInset - kApartItemWidth - SGRGrid;
+        CGRect trail = [apartBar.superview convertRect:plainFrame(apartBar) toView:host];
+        right = CGRectGetMaxX(trail) - kPlatterInset - kApartItemWidth + inset - SGRGrid;
     } else {
         CGRect whole = [stockBar convertRect:stockBar.bounds toView:host];
-        right = CGRectGetMaxX(whole) - kPlatterInset;
+        right = CGRectGetMaxX(whole) - kPlatterInset - inset;
     }
     CGFloat middle = CGRectGetMinY(lead) + kApartItemWidth / 2;
     CGRect slot = CGRectMake(left, middle - height / 2, right - left, height);

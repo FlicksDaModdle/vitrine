@@ -28,6 +28,9 @@
 static const CGFloat kCardRadius = 24;
 // The strip's pane is this much smaller than the strip at each end, so a gap parts it from the card's glass.
 static const CGFloat kStripInset = 4;
+// The card's glass this much in from the top and the bottom of Spotify's card, so it stands lower, as tall as the
+// minimized tab bar's circles (TabBar.x's kCircleScale); the cover and the text keep their places, centered in it.
+static const CGFloat kCardTrim = 4;
 static char kGlassKey, kStripGlassKey;
 static __weak UIView *sg_card;
 static CGRect sg_stripFrame;
@@ -153,7 +156,8 @@ static void restyleCardContent(UIView *card) {
         sg_progress = progress;
     }
     // Under the text, 226pt on a full width card, shorter on the one in the minimized tab bar.
-    CGRect target = CGRectMake(52, card.bounds.size.height - 6, MAX(0, card.bounds.size.width - 160), 2);
+    CGFloat trim = card.bounds.size.height - 2 * kCardTrim >= 48 ? kCardTrim : 0;
+    CGRect target = CGRectMake(52, card.bounds.size.height - 6 - trim, MAX(0, card.bounds.size.width - 160), 2);
     if (progress && !CGRectEqualToRect(progress.frame, target)) {
         progress.frame = target;
         [progress setNeedsLayout];
@@ -492,6 +496,15 @@ static void styleNowPlayingBar(UIViewController *container) {
     }
     frame.size.height = MIN(frame.size.height, 80);
     if (frame.size.height < 30 || frame.size.width < 100) return;
+    // Lower, where the strip leaves it the room: not on the strip's side, which the strip's pane meets.
+    if (frame.size.height - 2 * kCardTrim >= 48) {
+        if (!strip) frame = CGRectInset(frame, 0, kCardTrim);
+        else if (stripAbove) frame.size.height -= kCardTrim;
+        else {
+            frame.origin.y += kCardTrim;
+            frame.size.height -= kCardTrim;
+        }
+    }
 
     CGFloat radius = MIN(kCardRadius, frame.size.height / 2);
     if (card) {

@@ -90,15 +90,21 @@ static NSMutableArray<UIView *> *controlsIn(UIView *header, NSArray<NSString *> 
 
 // Puts the controls at the header's trailing edge, the last of them flush against it and each keeping the width
 // it has, and answers where the leading edge of the first of them fell.
+// The avatar, last, stands where Search has it: its side margin from the edge, and its glass pill's room
+// (Redesigned/Home/HomeProfileMenu.m) clear of the control before it.
+static BOOL isFace(UIView *view);
+static const CGFloat kFacePillRoom = 6 + 4;
 static CGFloat placeTrailing(UIView *header, NSArray<UIView *> *controls) {
     CGFloat right = header.bounds.size.width - kRowInset;
     for (UIView *control in controls.reverseObjectEnumerator) {
         CGFloat width = control.bounds.size.width;
+        BOOL face = isFace(control);
+        if (face && control == controls.lastObject) right = header.bounds.size.width - SGRSideMargin;
         // The center is where Auto Layout put the control, whatever transform is on it; its frame is not.
         CGFloat natural = [control.superview convertPoint:CGPointZero toView:header].x + control.center.x - width / 2;
         CGAffineTransform move = CGAffineTransformMakeTranslation(right - width - natural, 0);
         if (!CGAffineTransformEqualToTransform(control.transform, move)) control.transform = move;
-        right -= width;
+        right -= width + (face ? kFacePillRoom : 0);
     }
     return right;
 }

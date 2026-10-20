@@ -74,7 +74,8 @@ static NSHashTable<UIView *> *sg_lines;
     CGSize band = self.bounds.size;
     if (band.height <= 0) return;
     // The sung line a little below the cover rather than against it, and the band under it for the line to come.
-    CGFloat top = MIN(kTopRoom, band.height * 0.2);
+    // In a band taller than Spotify's (it runs to the title row), a little lower, so the room is shared above and under.
+    CGFloat top = MAX(MIN(kTopRoom, band.height * 0.2), round(band.height * 0.16));
     CGFloat height = ceil((band.height - top) / (1 - kKaraokeAnchor));
     CGRect frame = CGRectMake(0, top - round(height * kKaraokeAnchor), band.width, height);
     if (!CGRectEqualToRect(_lyrics.frame, frame)) _lyrics.frame = frame;

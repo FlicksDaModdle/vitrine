@@ -15,6 +15,7 @@
 #import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/Player/PlayerSettings.h"
 #import "Player.h"
 
 static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey;
@@ -204,10 +205,26 @@ static void previewLaidOut(UIView *view) {
     }
     if (own) {
         // Into the room under the preview, which Spotify leaves empty above the chip row; the preview lets it show.
+        // With Switch to video hidden, its room over the title is empty too, so the line runs down to the title row and
+        // the lines to come fill what was a blank band (the sung line sits lower in a taller band, PlayerLyricsPreviewLine.m).
         CGRect bounds = view.bounds;
-        bounds.size.height += SGRPreviewLineReach();
-        line.frame = bounds;
-        for (UIView *v = view; v && v != view.superview.superview; v = v.superview) v.clipsToBounds = NO;
+        CGFloat bottom = CGRectGetMaxY(bounds) + SGRPreviewLineReach();
+        CGRect row = SGHidden(SGKeyHideVideoSwitch) ? SGRPlayerTitleRowFrameIn(view) : CGRectNull;
+        CGFloat rowTop = CGRectIsNull(row) ? 0 : CGRectGetMinY(row) - 4;
+        if (rowTop > CGRectGetMaxY(bounds) && rowTop < CGRectGetMaxY(bounds) + 200) bottom = rowTop;
+        bounds.size.height = bottom - CGRectGetMinY(bounds);
+        if (!CGRectEqualToRect(line.frame, bounds)) line.frame = bounds;
+        // Unclipped up to the cell the cover is in, not past it: a scroll view clipping is the player's own.
+        int up = 0;
+        for (UIView *v = view; v && up < 5 && ![v isKindOfClass:UIScrollView.class]; v = v.superview, up++) {
+            if (v.clipsToBounds) v.clipsToBounds = NO;
+            if ([v isKindOfClass:UICollectionViewCell.class] || [v isKindOfClass:UITableViewCell.class]) break;
+        }
+        static BOOL roomLogged;
+        if (!roomLogged && !CGRectIsNull(row)) {
+            roomLogged = YES;
+            SGLog(@"redesign player: the lyric preview line runs %.0f pt, to the title row at %.0f", bounds.size.height, CGRectGetMinY(row));
+        }
         if (line.superview != view) [view addSubview:line];
     } else [line removeFromSuperview];
     for (UIView *sub in view.subviews) {

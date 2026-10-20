@@ -272,6 +272,11 @@ BOOL SGRPlayerLyricsAvailable(void) {
     return track != nil && SGKaraokeLinesForTrack(track) != nil;
 }
 
+CGRect SGRPlayerTitleRowFrameIn(UIView *host) {
+    UIView *info = sg_info.viewIfLoaded;
+    return info.window && host.window ? untransformed(info, host) : CGRectNull;
+}
+
 BOOL SGRPlayerLyricsOpen(void) {
     return sg_open;
 }
