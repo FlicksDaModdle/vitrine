@@ -17,6 +17,7 @@
 // label's, so it follows the app's language.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Home/Home.h"
 #import "Search.h"
 
 // Layout passes without the header before that is logged.
@@ -124,7 +125,9 @@ static void layoutHeader(UIStackView *row) {
     UIFont *font = SGRFont(UIFontTextStyleLargeTitle, UIFontWeightBold, UIContentSizeCategoryLarge);
     if (![title.font isEqual:font]) title.font = font;
 
-    CGFloat trailing = face ? CGRectGetMinX(face.frame) - SGRGrid : row.bounds.size.width;
+    // The avatar on its glass pill with the profile menu, as on Home (Redesigned/Home/HomeProfileMenu.m).
+    if (face) SGRProfilePillAround(face);
+    CGFloat trailing = face ? CGRectGetMinX(face.frame) - SGRGrid - 6 : row.bounds.size.width;
     CGFloat height = ceil(font.lineHeight);
     CGRect frame = CGRectMake(0, round(CGRectGetMidY(row.bounds) - height / 2), MAX(0, trailing), height);
     if (!CGRectEqualToRect(title.frame, frame)) title.frame = frame;

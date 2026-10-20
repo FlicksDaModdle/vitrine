@@ -40,29 +40,7 @@ static const CGFloat kTintHeight = 480;
 @property (nonatomic, strong) UIButton *profile;   // over the avatar: its menu (HomeProfileMenu.m)
 @end
 
-// The profile menu's button is clear over Spotify's avatar, so the menu grows out of the avatar and shrinks back
-// into it, as the filter button's does into its glyph, rather than out of nothing.
-@interface SGRAvatarMenuButton : UIButton
-@property (nonatomic, weak) UIView *source;
-@end
-@implementation SGRAvatarMenuButton
-- (UITargetedPreview *)avatarPreview {
-    UIView *source = self.source;
-    if (!source.window || CGRectIsEmpty(source.bounds)) return nil;
-    UIPreviewParameters *parameters = [UIPreviewParameters new];
-    parameters.backgroundColor = UIColor.clearColor;
-    parameters.visiblePath = [UIBezierPath bezierPathWithOvalInRect:source.bounds];
-    return [[UITargetedPreview alloc] initWithView:source parameters:parameters];
-}
-- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-    previewForHighlightingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
-    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForHighlightingMenuWithConfiguration:configuration];
-}
-- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-    previewForDismissingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
-    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForDismissingMenuWithConfiguration:configuration];
-}
-@end
+
 @implementation SGRHomePillButtons
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = [super hitTest:point withEvent:event];

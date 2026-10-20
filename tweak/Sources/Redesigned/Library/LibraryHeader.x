@@ -44,6 +44,7 @@
 
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Home/Home.h"
 #import "Library.h"
 
 NSString *const SGRLibraryListIdentifier = @"YourLibraryContent.collectionView";
@@ -192,6 +193,8 @@ static NSArray<UIView *> *placeRoot(UIView *header) {
     if (!trailing.count) return trailing;
 
     CGFloat leading = placeTrailing(header, trailing);
+    // The avatar on its glass pill with the profile menu, as on Home (Redesigned/Home/HomeProfileMenu.m).
+    if (face) SGRProfilePillAround(face);
     CGRect row = SGFrameIn(trailing.firstObject, header);
     layoutTitle(header, spotifyTitle, SGRSideMargin, leading, CGRectGetMidY(row));
     for (UIView *control in trailing) watchRow(control.superview, header, placeRoot);

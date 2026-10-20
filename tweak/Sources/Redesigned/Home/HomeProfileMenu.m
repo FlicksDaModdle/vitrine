@@ -210,3 +210,72 @@ NSArray<UIMenuElement *> *SGRHomeProfileMenuElements(UIView *face) {
     ]];
     return @[account, pages, settings, more];
 }
+
+#pragma mark - the avatar's button and pill
+
+// The profile menu's button is clear over Spotify's avatar, so the menu grows out of the avatar and shrinks back
+// into it, as the filter button's does into its glyph, rather than out of nothing.
+@implementation SGRAvatarMenuButton
+- (UITargetedPreview *)avatarPreview {
+    UIView *source = self.source;
+    if (!source.window || CGRectIsEmpty(source.bounds)) return nil;
+    UIPreviewParameters *parameters = [UIPreviewParameters new];
+    parameters.backgroundColor = UIColor.clearColor;
+    parameters.visiblePath = [UIBezierPath bezierPathWithOvalInRect:source.bounds];
+    return [[UITargetedPreview alloc] initWithView:source parameters:parameters];
+}
+- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
+    previewForHighlightingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
+    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForHighlightingMenuWithConfiguration:configuration];
+}
+- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
+    previewForDismissingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
+    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForDismissingMenuWithConfiguration:configuration];
+}
+@end
+
+static char kPillGlassKey, kPillShapeKey, kPillButtonKey;
+static const CGFloat kPillPad = 6;
+
+void SGRProfilePillAround(UIView *face) {
+    UIView *host = face.superview;
+    if (!host || !face.window || CGRectIsEmpty(face.bounds)) return;
+    UIView *glass = objc_getAssociatedObject(host, &kPillGlassKey);
+    SGRAvatarMenuButton *button = objc_getAssociatedObject(host, &kPillButtonKey);
+    if (!SGEnabled(SGRKeyHomeProfileMenu)) {
+        glass.hidden = YES;
+        button.hidden = YES;
+        return;
+    }
+    if (!glass) {
+        glass = [UIView new];
+        glass.userInteractionEnabled = NO;
+        objc_setAssociatedObject(host, &kPillGlassKey, glass, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (!button) {
+        button = [SGRAvatarMenuButton buttonWithType:UIButtonTypeCustom];
+        button.accessibilityLabel = @"Profile";
+        button.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        __weak UIView *weakFace = face;
+        button.menu = [UIMenu menuWithChildren:@[[UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
+            completion(SGRHomeProfileMenuElements(weakFace));
+        }]]];
+        button.showsMenuAsPrimaryAction = YES;
+        objc_setAssociatedObject(host, &kPillButtonKey, button, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    glass.hidden = NO;
+    button.hidden = NO;
+    // face.frame carries the move a page gives the avatar by transform (Library), so the pill follows it.
+    CGRect avatar = face.frame;
+    CGFloat side = MAX(avatar.size.width, avatar.size.height) + 2 * kPillPad;
+    CGRect pill = CGRectMake(round(CGRectGetMidX(avatar) - side / 2), round(CGRectGetMidY(avatar) - side / 2), side, side);
+    if (!CGRectEqualToRect(glass.frame, pill)) glass.frame = pill;
+    SGRGlassCapsuleInside(glass, &kPillShapeKey, pill.size, NO);
+    if (glass.superview != host) [host insertSubview:glass belowSubview:face];
+    __block UIView *control = nil;
+    SGForEachView(face, ^(UIView *v) { if (!control && [v isKindOfClass:UIControl.class]) control = v; });
+    button.source = control ?: face;
+    if (!CGRectEqualToRect(button.frame, avatar)) button.frame = avatar;
+    if (button.superview != host) [host addSubview:button];
+    else if (host.subviews.lastObject != button) [host bringSubviewToFront:button];
+}
