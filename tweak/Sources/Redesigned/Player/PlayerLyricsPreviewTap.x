@@ -17,7 +17,7 @@
 #import "Shared/Lyrics/Lyrics.h"
 #import "Player.h"
 
-static char kTapKey, kOriginalKey, kShownKey;
+static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey;
 static Class sg_previewClass;
 static NSHashTable<UILabel *> *sg_labels;
 static BOOL sg_setting;   // a text of ours going in, which the hooks pass through
@@ -102,7 +102,7 @@ static void keep(UILabel *label, id original) {
 
 %hook UILabel
 - (void)setText:(NSString *)text {
-    if (sg_setting || !text.length || !inPreview((UIView *)self)) {
+    if (sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
         %orig;
         return;
     }
@@ -124,7 +124,7 @@ static void keep(UILabel *label, id original) {
 }
 
 - (void)setAttributedText:(NSAttributedString *)text {
-    if (sg_setting || !text.length || !inPreview((UIView *)self)) {
+    if (sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
         %orig;
         return;
     }
@@ -187,9 +187,31 @@ static void previewLaidOut(UIView *view) {
         SGForEachView(view, ^(UIView *v) { if (v != view) [kinds addObject:NSStringFromClass(v.class)]; });
         SGLog(@"redesign player: the lyric preview is %@ %@, holding %@", name, NSStringFromCGSize(size), [kinds componentsJoinedByString:@", "]);
     }
+    // The mod's own line in place of Spotify's: Spotify's views stay, with no alpha, and come back with the switch off.
+    UIView *line = objc_getAssociatedObject(view, &kLineKey);
+    BOOL own = SGEnabled(SGRKeyLyricsPreviewOwn) && SGRPlayerLyricsAvailable();
+    if (own && !line) {
+        line = SGRPreviewLineMake();
+        objc_setAssociatedObject(view, &kLineKey, line, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    if (own) {
+        line.frame = view.bounds;
+        if (line.superview != view) [view addSubview:line];
+    } else [line removeFromSuperview];
+    for (UIView *sub in view.subviews) {
+        if (sub == line || [sub isKindOfClass:SGRPreviewTap.class]) continue;
+        if (own && sub.alpha != 0) {
+            objc_setAssociatedObject(sub, &kHiddenKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            sub.alpha = 0;
+        } else if (!own && objc_getAssociatedObject(sub, &kHiddenKey)) {
+            objc_setAssociatedObject(sub, &kHiddenKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            sub.alpha = 1;
+        }
+    }
+
     // A label filled before it was inside the preview: its line is taken now.
     SGForEachView(view, ^(UIView *v) {
-        if (![v isKindOfClass:UILabel.class]) return;
+        if (![v isKindOfClass:UILabel.class] || SGRPreviewLineIsOurs(v)) return;
         UILabel *label = (UILabel *)v;
         if (objc_getAssociatedObject(label, &kOriginalKey) || !label.text.length) return;
         if (label.attributedText.length) label.attributedText = label.attributedText;

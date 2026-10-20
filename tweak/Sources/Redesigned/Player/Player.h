@@ -133,6 +133,11 @@ void SGRPlayerShowLyricsScreen(void);
 // (PlayerLyricsPreviewTap.x). On until
 // switched off.
 #define SGRKeyLyricsPreviewOpensScreen @"spotifyglass.redesign.lyrics.previewOpensScreen"
+// The line under the cover drawn by the mod in the lyrics view's type, lit letter by letter, in place of Spotify's
+// (PlayerLyricsPreviewLine.m). On until switched off.
+#define SGRKeyLyricsPreviewOwn @"spotifyglass.redesign.lyrics.previewOwn"
+UIView *SGRPreviewLineMake(void);
+BOOL SGRPreviewLineIsOurs(UIView *view);
 // The playing track's lines came in, or turned out to be none: the landscape screen lays out for it.
 void SGRPlayerLandscapeLinesChanged(void);
 
