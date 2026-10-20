@@ -106,8 +106,10 @@ if xcrun --sdk iphoneos --find swiftc >/dev/null 2>&1; then
   EXT_DIR="$ROOT/out/extension"
   unzip -p "$IN" "${APP_DIR}Info.plist" > "$ROOT/out/.info.plist"
   "$ROOT/scripts/build-extension.sh" "$ROOT/out/.info.plist" "$EXT_DIR"
+  # "Open in Vitrine" in the share sheet (extension/OpenInVitrine).
+  "$ROOT/scripts/build-open-in-vitrine.sh" "$ROOT/out/.info.plist" "$ROOT/out/open-in-vitrine"
   rm -f "$ROOT/out/.info.plist"
-  FILES+=("$EXT_DIR/SpotifyGlassLiveActivity.appex")
+  FILES+=("$EXT_DIR/SpotifyGlassLiveActivity.appex" "$ROOT/out/open-in-vitrine/OpenInVitrine.appex")
 else
   echo "==> no Xcode selected: building without the Live Activity extension"
 fi
