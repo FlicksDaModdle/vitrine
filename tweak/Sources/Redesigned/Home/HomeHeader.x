@@ -39,6 +39,30 @@ static const CGFloat kTintHeight = 480;
 @property (nonatomic, strong) UIButton *filter;
 @property (nonatomic, strong) UIButton *profile;   // over the avatar: its menu (HomeProfileMenu.m)
 @end
+
+// The profile menu's button is clear over Spotify's avatar, so the menu grows out of the avatar and shrinks back
+// into it, as the filter button's does into its glyph, rather than out of nothing.
+@interface SGRAvatarMenuButton : UIButton
+@property (nonatomic, weak) UIView *source;
+@end
+@implementation SGRAvatarMenuButton
+- (UITargetedPreview *)avatarPreview {
+    UIView *source = self.source;
+    if (!source.window || CGRectIsEmpty(source.bounds)) return nil;
+    UIPreviewParameters *parameters = [UIPreviewParameters new];
+    parameters.backgroundColor = UIColor.clearColor;
+    parameters.visiblePath = [UIBezierPath bezierPathWithOvalInRect:source.bounds];
+    return [[UITargetedPreview alloc] initWithView:source parameters:parameters];
+}
+- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
+    previewForHighlightingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
+    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForHighlightingMenuWithConfiguration:configuration];
+}
+- (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
+    previewForDismissingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {
+    return [self avatarPreview] ?: [super contextMenuInteraction:interaction previewForDismissingMenuWithConfiguration:configuration];
+}
+@end
 @implementation SGRHomePillButtons
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = [super hitTest:point withEvent:event];
@@ -200,7 +224,7 @@ static SGRHomePillButtons *buttonsIn(UIView *header) {
         }]]];
         buttons.filter.showsMenuAsPrimaryAction = YES;
         [buttons addSubview:buttons.filter];
-        buttons.profile = [UIButton buttonWithType:UIButtonTypeCustom];
+        buttons.profile = [SGRAvatarMenuButton buttonWithType:UIButtonTypeCustom];
         buttons.profile.accessibilityLabel = @"Profile";
         buttons.profile.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         buttons.profile.menu = [UIMenu menuWithChildren:@[[UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
@@ -265,6 +289,9 @@ static CGFloat layoutPill(UIView *header, UIStackView *stack, UIView *face) {
     // Over the avatar, taking its taps for the menu; off, the avatar under it opens the drawer as Spotify's does.
     buttons.profile.hidden = !face || !SGEnabled(SGRKeyHomeProfileMenu);
     if (face) {
+        __block UIView *avatar = nil;
+        SGForEachView(face, ^(UIView *v) { if (!avatar && [v isKindOfClass:UIControl.class]) avatar = v; });
+        ((SGRAvatarMenuButton *)buttons.profile).source = avatar ?: face;
         CGRect profile = CGRectOffset(faceFrame, -pill.origin.x, -pill.origin.y);
         if (!CGRectEqualToRect(buttons.profile.frame, profile)) buttons.profile.frame = profile;
     }
@@ -367,7 +394,10 @@ static void followScroll(UIScrollView *scroll) {
     CGFloat alpha = 1 - MIN(1, scrolled / MAX(1, title.bounds.size.height));
     rise(title, up, alpha);
     // The pill floats where it is, over the page scrolling under it (SGRKeyHomePillFloats), unless switched off.
-    BOOL floats = SGEnabled(SGRKeyHomePillFloats) && SGRHomeLook();
+    // Read once: Home's switches apply after a restart, and this runs on every frame of a scroll.
+    static BOOL floats;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ floats = SGEnabled(SGRKeyHomePillFloats) && SGRHomeLook(); });
     CGAffineTransform pillUp = floats ? CGAffineTransformIdentity : up;
     CGFloat pillAlpha = floats ? 1 : alpha;
     riseGlass(objc_getAssociatedObject(sg_header, &kGlassKey), pillUp, pillAlpha);

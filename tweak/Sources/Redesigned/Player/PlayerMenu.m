@@ -11,6 +11,7 @@
 // The item says under its name what is not as Spotify plays it, so the menu reads as a settings summary.
 #import "Core/SGCore.h"
 #import "Redesigned/ContextMenu/ContextMenu.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/PlayerState.h"
 #import "Shared/Player/SpeedPitch.h"
@@ -58,6 +59,7 @@ static NSArray<UIMenuElement *> *playerItems(void) {
         [items addObject:[UIAction actionWithTitle:@"Full-Screen Lyrics" image:symbol(@"quote.bubble") identifier:nil
                                            handler:^(UIAction *action) { SGRPlayerShowLyricsScreen(); }]];
     }
+    if (SGRPlayerLyricsAvailable()) [items addObject:SGRLyricsSizesMenu()];
     if (SGLyricCardAvailable()) {
         [items addObject:[UIAction actionWithTitle:@"Share Lyrics" image:symbol(@"square.and.arrow.up") identifier:nil
                                            handler:^(UIAction *action) { SGLyricCardPresent(nil); }]];

@@ -107,3 +107,54 @@ NSArray<SGKaraokeLine *> *SGRLyricsSampleLines(void) {
 NSInteger SGRLyricsSampleLength(void) {
     return 13500;   // a pause after the last line, then the first again
 }
+
+#pragma mark - the size in each place
+
+NSNotificationName const SGRLyricsSizeDidChangeNotification = @"spotifyglass.redesign.lyricsSizeDidChange";
+
+static NSString *sizeKey(SGRLyricsPlace place) {
+    switch (place) {
+        case SGRLyricsPlacePreview: return @"spotifyglass.redesign.lyricsSize.preview";
+        case SGRLyricsPlacePlayer: return @"spotifyglass.redesign.lyricsSize.player";
+        case SGRLyricsPlaceFullScreen: return @"spotifyglass.redesign.lyricsSize.fullScreen";
+        default: return nil;
+    }
+}
+
+CGFloat SGRLyricsSizeFor(SGRLyricsPlace place) {
+    NSString *key = sizeKey(place);
+    return key ? MAX(0, [NSUserDefaults.standardUserDefaults doubleForKey:key]) : 0;
+}
+
+void SGRSetLyricsSize(SGRLyricsPlace place, CGFloat size) {
+    NSString *key = sizeKey(place);
+    if (!key) return;
+    if (size > 0) [NSUserDefaults.standardUserDefaults setDouble:size forKey:key];
+    else [NSUserDefaults.standardUserDefaults removeObjectForKey:key];
+    [NSNotificationCenter.defaultCenter postNotificationName:SGRLyricsSizeDidChangeNotification object:nil];
+}
+
+UIMenu *SGRLyricsSizeMenu(SGRLyricsPlace place, NSString *title) {
+    NSArray<NSArray *> *sizes = @[@[@0, @"Default"], @[@18, @"Extra Small"], @[@22, @"Small"], @[@26, @"Medium"],
+                                  @[@30, @"Large"], @[@34, @"Extra Large"], @[@40, @"Huge"]];
+    CGFloat current = SGRLyricsSizeFor(place);
+    NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
+    for (NSArray *size in sizes) {
+        CGFloat points = [size[0] doubleValue];
+        UIAction *action = [UIAction actionWithTitle:size[1] image:nil identifier:nil handler:^(UIAction *a) {
+            SGRSetLyricsSize(place, points);
+        }];
+        if (points > 0) action.subtitle = [NSString stringWithFormat:@"%.0f pt", points];
+        action.state = fabs(points - current) < 0.5 ? UIMenuElementStateOn : UIMenuElementStateOff;
+        [items addObject:action];
+    }
+    return [UIMenu menuWithTitle:title image:[UIImage systemImageNamed:@"textformat.size"] identifier:nil options:0 children:items];
+}
+
+UIMenu *SGRLyricsSizesMenu(void) {
+    return [UIMenu menuWithTitle:@"Lyrics Size" image:[UIImage systemImageNamed:@"textformat.size"] identifier:nil options:0 children:@[
+        SGRLyricsSizeMenu(SGRLyricsPlacePreview, @"Under the Cover"),
+        SGRLyricsSizeMenu(SGRLyricsPlacePlayer, @"In the Player"),
+        SGRLyricsSizeMenu(SGRLyricsPlaceFullScreen, @"Full Screen"),
+    ]];
+}

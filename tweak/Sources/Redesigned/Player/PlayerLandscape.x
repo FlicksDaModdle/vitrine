@@ -14,6 +14,7 @@
 #import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/PlayerState.h"
@@ -131,6 +132,7 @@ static UIButton *controlButton(NSString *symbol, CGFloat size, NSString *label, 
     _stage = [UIView new];
     [self.view addSubview:_stage];
     _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
+    _lyrics.sizePlace = SGRLyricsPlaceFullScreen;
     _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [_stage addSubview:_lyrics];
     __weak SGRLandscapeLyricsController *weakSelf = self;

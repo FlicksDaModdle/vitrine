@@ -8,6 +8,7 @@
 // is over it) and its pronunciation and translation button is hidden. PlayerLyricsPreviewTap.x puts it over
 // Spotify's preview, whose own views it leaves in place with no alpha.
 #import "Core/SGCore.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Player.h"
 
@@ -23,8 +24,20 @@ static const CGFloat kReach = 36, kFade = 28;
 @interface SGRPreviewLineView : UIView
 @end
 
+static NSHashTable<UIView *> *sg_lines;
+
 @implementation SGRPreviewLineView {
     SGRKaraokeView *_lyrics;
+}
+
+// Out of the window while the player's own lines are up, so its display link and its layout stop with it.
+- (void)rest:(BOOL)resting {
+    if (!_lyrics) return;
+    if (resting && _lyrics.superview) [_lyrics removeFromSuperview];
+    else if (!resting && !_lyrics.superview) {
+        [self addSubview:_lyrics];
+        [self setNeedsLayout];
+    }
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -44,12 +57,16 @@ static const CGFloat kReach = 36, kFade = 28;
     if (self.window && !_lyrics) {
         _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
         _lyrics.maxFontSize = kMaxFont;
+        _lyrics.sizePlace = SGRLyricsPlacePreview;
         _lyrics.extrasHidden = YES;
         _lyrics.keepsSing = NO;
         _lyrics.userInteractionEnabled = NO;
+        if (!sg_lines) sg_lines = [NSHashTable weakObjectsHashTable];
+        [sg_lines addObject:self];
         [self addSubview:_lyrics];
         [self setNeedsLayout];
     }
+    [self rest:SGRPlayerLyricsOpen()];
 }
 
 - (void)layoutSubviews {
@@ -71,6 +88,11 @@ static const CGFloat kReach = 36, kFade = 28;
 }
 
 @end
+
+void SGRPreviewLineLyricsChanged(void) {
+    BOOL open = SGRPlayerLyricsOpen();
+    for (SGRPreviewLineView *line in sg_lines.allObjects) [line rest:open];
+}
 
 CGFloat SGRPreviewLineReach(void) {
     return kReach;

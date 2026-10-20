@@ -27,6 +27,7 @@
 #import <UIKit/UIGestureRecognizerSubclass.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Redesigned/Lyrics/SGRSingButton.h"
 #import "Settings/SGPageStyle.h"
@@ -134,6 +135,7 @@ static __weak UIGestureRecognizer *sg_wake; // on the player, on while alone: th
 - (SGRKaraokeView *)lyrics {
     if (!_lyrics) {
         _lyrics = [[SGRKaraokeView alloc] initWithFrame:_stage.bounds];
+        _lyrics.sizePlace = SGRLyricsPlacePlayer;
         _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         // Sing's mic stays while the lines are on their own, moving down with them (setAlone).
         _lyrics.keepsSing = YES;

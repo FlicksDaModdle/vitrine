@@ -139,6 +139,8 @@ void SGRPlayerShowLyricsScreen(void);
 UIView *SGRPreviewLineMake(void);
 // How far past the bottom of Spotify's preview the line's band reaches.
 CGFloat SGRPreviewLineReach(void);
+// The player's own lines came up or went: the line under the cover, out of sight under them, stops drawing.
+void SGRPreviewLineLyricsChanged(void);
 BOOL SGRPreviewLineIsOurs(UIView *view);
 // The playing track's lines came in, or turned out to be none: the landscape screen lays out for it.
 void SGRPlayerLandscapeLinesChanged(void);

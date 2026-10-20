@@ -25,4 +25,7 @@
 // The largest the words may be set, for a host with a small room (the line under the player's cover); 0 for the
 // Lyrics page's size as it is.
 @property (nonatomic) CGFloat maxFontSize;
+// The place it shows in (Redesigned/Lyrics/LyricsLook.h's SGRLyricsPlace): its words take that place's size where
+// one is chosen, and follow a change of it at once. 0 for none, the look's size.
+@property (nonatomic) NSInteger sizePlace;
 @end

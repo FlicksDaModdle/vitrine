@@ -21,6 +21,12 @@ static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey;
 static Class sg_previewClass;
 static NSHashTable<UILabel *> *sg_labels;
 static BOOL sg_setting;   // a text of ours going in, which the hooks pass through
+// Whether Spotify's preview labels are romanized at all: Romanized lyrics on and the mod's own line off (it draws
+// its own). Every label in the app goes through the hooks, so this is what they read first; it follows the switch.
+static BOOL sg_labelsWanted;
+static void readLabelsWanted(void) {
+    sg_labelsWanted = SGFlag(SGKeyLyricsRomanised, NO) && !SGEnabled(SGRKeyLyricsPreviewOwn);
+}
 
 #pragma mark - the tap
 
@@ -102,7 +108,7 @@ static void keep(UILabel *label, id original) {
 
 %hook UILabel
 - (void)setText:(NSString *)text {
-    if (sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
+    if (!sg_labelsWanted || sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
         %orig;
         return;
     }
@@ -124,7 +130,7 @@ static void keep(UILabel *label, id original) {
 }
 
 - (void)setAttributedText:(NSAttributedString *)text {
-    if (sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
+    if (!sg_labelsWanted || sg_setting || !text.length || SGRPreviewLineIsOurs((UIView *)self) || !inPreview((UIView *)self)) {
         %orig;
         return;
     }
@@ -215,8 +221,8 @@ static void previewLaidOut(UIView *view) {
         }
     }
 
-    // A label filled before it was inside the preview: its line is taken now.
-    SGForEachView(view, ^(UIView *v) {
+    // A label filled before it was inside the preview: its line is taken now. Not with the mod's own line up.
+    if (sg_labelsWanted) SGForEachView(view, ^(UIView *v) {
         if (![v isKindOfClass:UILabel.class] || SGRPreviewLineIsOurs(v)) return;
         UILabel *label = (UILabel *)v;
         if (objc_getAssociatedObject(label, &kOriginalKey) || !label.text.length) return;
@@ -265,6 +271,7 @@ static void hookLayout(Class cls) {
         if (cls) [classes addObject:cls];
     }
     sg_previewClasses = classes;
+    readLabelsWanted();
     sg_previewClass = classes.firstObject;
     SGLog(@"redesign player: lyric preview classes %@", classes);
     if (!classes.count) return;
@@ -272,6 +279,9 @@ static void hookLayout(Class cls) {
     %init;
     [NSNotificationCenter.defaultCenter addObserverForName:SGLyricsRomanisedDidChangeNotification object:nil queue:nil
                                                 usingBlock:^(NSNotification *note) {
-        dispatch_async(dispatch_get_main_queue(), ^{ refreshLabels(); });
+        dispatch_async(dispatch_get_main_queue(), ^{
+            readLabelsWanted();
+            refreshLabels();
+        });
     }];
 }

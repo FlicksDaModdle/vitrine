@@ -19,6 +19,22 @@ extern NSNotificationName const SGRLyricsLookDidChangeNotification;
 SGRLyricsLook SGRLyricsLookNow(void);
 void SGRSetLyricsLook(SGRLyricsLook look, id changer);
 
+// The words' size in each place the lyrics show, over the look's own: the line under the player's cover, the lines
+// in the player, and the full-screen lyrics (and the landscape screen with them). 0 is the place's default: the
+// look's size, capped at 26 under the cover. Applies at once, posting the notification below.
+typedef NS_ENUM(NSInteger, SGRLyricsPlace) {
+    SGRLyricsPlaceNone = 0,
+    SGRLyricsPlacePreview,
+    SGRLyricsPlacePlayer,
+    SGRLyricsPlaceFullScreen,
+};
+extern NSNotificationName const SGRLyricsSizeDidChangeNotification;
+CGFloat SGRLyricsSizeFor(SGRLyricsPlace place);
+void SGRSetLyricsSize(SGRLyricsPlace place, CGFloat size);
+// A menu of the sizes for one place, a checkmark at the one it has; and one of the three places' menus.
+UIMenu *SGRLyricsSizeMenu(SGRLyricsPlace place, NSString *title);
+UIMenu *SGRLyricsSizesMenu(void);
+
 // The presets, by name, Apple Music's first.
 NSArray<NSString *> *SGRLyricsLookPresetNames(void);
 SGRLyricsLook SGRLyricsLookPreset(NSUInteger index);

@@ -1445,12 +1445,22 @@ typedef struct {
 // and the wave every held word's, so a change is the song measured again in it and crossfaded over.
 - (void)takeLook {
     SGRLyricsLook look = SGRLyricsLookNow();
-    _fontSize = _maxFontSize > 0 ? MIN(look.size, _maxFontSize) : look.size;
+    CGFloat chosen = SGRLyricsSizeFor((SGRLyricsPlace)_sizePlace);
+    // A size chosen for the place stands; otherwise the look's, within the host's cap.
+    _fontSize = chosen > 0 ? chosen : _maxFontSize > 0 ? MIN(look.size, _maxFontSize) : look.size;
     _lineGap = look.spacing;
     _blurPerLine = kBlurPerLine * look.blur;
     _maxBlur = kMaxBlur * look.blur;
     sgr_glowScale = look.glow;
     sgr_waveScale = look.wave;
+}
+
+- (void)setSizePlace:(NSInteger)sizePlace {
+    if (_sizePlace == sizePlace) return;
+    if (!_sizePlace) [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(lookChanged)
+                                                                 name:SGRLyricsSizeDidChangeNotification object:nil];
+    _sizePlace = sizePlace;
+    [self lookChanged];
 }
 
 - (void)setMaxFontSize:(CGFloat)maxFontSize {

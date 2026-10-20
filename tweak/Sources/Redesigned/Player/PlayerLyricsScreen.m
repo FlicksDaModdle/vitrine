@@ -9,6 +9,7 @@
 // sibling (PlayerLandscape.x) and shares its parts: the karaoke view, the artwork field and the player.
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
+#import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Settings/SGPageStyle.h"
 #import "Shared/Lyrics/Lyrics.h"
@@ -30,7 +31,7 @@ static UIButton *glyphButton(NSString *symbol, CGFloat size, NSString *label, SE
         [UIImageSymbolConfiguration configurationWithPointSize:size weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
     button.tintColor = UIColor.whiteColor;
     button.accessibilityLabel = label;
-    [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
+    if (action) [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
     return button;
 }
 
@@ -42,7 +43,7 @@ static NSString *timeText(double seconds) {
 
 @implementation SGRLyricsScreenController {
     SGRArtworkField *_field;
-    UIButton *_back, *_share, *_play, *_previous, *_next;
+    UIButton *_back, *_share, *_size, *_play, *_previous, *_next;
     SGMarqueeLabel *_title, *_artist;
     UIView *_stage;   // the lines' own view: the karaoke view dims every sibling it has
     SGRKaraokeView *_lyrics;
@@ -79,6 +80,14 @@ static NSString *timeText(double seconds) {
     // A lyric card of the lines (Shared/Lyrics/LyricCard.m).
     _share = glyphButton(@"square.and.arrow.up", 18, @"Share lyrics", @selector(shareLyrics), self);
     [self.view addSubview:_share];
+    // The words' size here (LyricsLook.h), from a menu.
+    _size = glyphButton(@"textformat.size", 17, @"Lyrics size", NULL, nil);
+    _size.menu = [UIMenu menuWithChildren:@[[UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
+        completion(SGRLyricsSizeMenu(SGRLyricsPlaceFullScreen, @"").children);
+    }]]];
+    _size.showsMenuAsPrimaryAction = YES;
+    _size.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    [self.view addSubview:_size];
     _cover = [UIImageView new];
     _cover.contentMode = UIViewContentModeScaleAspectFill;
     _cover.clipsToBounds = YES;
@@ -98,6 +107,7 @@ static NSString *timeText(double seconds) {
     _stage = [UIView new];
     [self.view addSubview:_stage];
     _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
+    _lyrics.sizePlace = SGRLyricsPlaceFullScreen;
     _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _lyrics.keepsSing = YES;
     [_stage addSubview:_lyrics];
@@ -163,8 +173,9 @@ static NSString *timeText(double seconds) {
     CGFloat rowHeight = MAX(kThumb, kControlSide);
     _back.frame = CGRectMake(CGRectGetMaxX(safe) - kSide + 6 - kControlSide, top + (rowHeight - kControlSide) / 2, kControlSide, kControlSide);
     _share.frame = CGRectOffset(_back.frame, -kControlSide - 4, 0);
+    _size.frame = CGRectOffset(_share.frame, -kControlSide, 0);
     _cover.frame = CGRectMake(left + kSide, top + (rowHeight - kThumb) / 2, kThumb, kThumb);
-    CGFloat textLeft = CGRectGetMaxX(_cover.frame) + 12, textWidth = CGRectGetMinX(_share.frame) - 8 - textLeft;
+    CGFloat textLeft = CGRectGetMaxX(_cover.frame) + 12, textWidth = CGRectGetMinX(_size.frame) - 8 - textLeft;
     CGFloat titleHeight = ceil(_title.font.lineHeight), artistHeight = ceil(_artist.font.lineHeight);
     CGFloat textTop = top + (rowHeight - titleHeight - artistHeight) / 2;
     _title.frame = CGRectMake(textLeft, textTop, textWidth, titleHeight);
