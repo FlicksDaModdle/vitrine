@@ -164,9 +164,9 @@ UIViewController *SGPlayerSettingsPage(void) {
     ])];
 
     [sections addObject:SGNotedSection(@"Shuffle", @[
-        SGSwitchRow(@"True shuffle", @"Playlists in a plain random order instead of Spotify's weighted one", SGKeyTrueShuffle),
+        SGSwitchRow(@"True shuffle", @"Playlists, albums and Liked Songs in a plain random order instead of Spotify's weighted one", SGKeyTrueShuffle),
     ], @"Turning shuffle on for a playlist deals its songs in a fair random order, the song playing first. Spotify's "
-       @"shuffle button then reads off; turn it on again for a new order. Albums, Liked Songs and stations keep Spotify's shuffle.")];
+       @"shuffle button then reads off; turn it on again for a new order. Stations, mixes and podcasts keep Spotify's shuffle.")];
 
     [sections addObject:SGNotedSection(@"Lossless", @[
         SGOptionRow(@"Lossless files", @"Your own FLACs in place of Spotify's stream", SGKeyLossless),

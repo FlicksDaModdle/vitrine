@@ -1,8 +1,9 @@
 // True shuffle: a playlist in a plain random order, every order as likely as any other, in place of Spotify's
 // weighted one (its C++ core scores tracks, so a playlist's familiar or "fitting" songs come round more often).
 //
-// When shuffle comes on for a playlist (the button, or a playlist started shuffled), the playlist's tracks are
-// read as the app reads them (spclient's playlist/v2, with the signed-in app's headers, SGSpclientHeaders), put
+// When shuffle comes on for a playlist, an album or Liked Songs (the button, or one started shuffled), its tracks are
+// read with the signed-in app's headers (SGSpclientHeaders): a playlist from spclient's playlist/v2 as the app reads it,
+// an album or Liked Songs from the Web API's pages. They are put
 // in a Fisher-Yates order with the song playing first, and played again as the same playlist with that order as
 // its page and Spotify's own shuffle overridden off, from where the song was. Spotify's shuffle button reads off
 // then, and turning it on again deals a new order.
@@ -52,6 +53,66 @@ static void fetchPlaylist(NSString *playlistID, void (^done)(NSArray<NSString *>
             dispatch_async(dispatch_get_main_queue(), ^{ done(uris); });
         }] resume];
     });
+}
+
+// An album's or Liked Songs' tracks from the Web API, 50 a page, with the signed-in app's token: every page's
+// items[].uri, or items[].track.uri for the library.
+static void fetchPages(NSString *url, NSMutableArray<NSString *> *into, NSString *authorization, NSUInteger pages, void (^done)(NSArray<NSString *> *)) {
+    if (!url.length || pages >= 200) {
+        dispatch_async(dispatch_get_main_queue(), ^{ done(into); });
+        return;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
+    [request setValue:authorization forHTTPHeaderField:@"Authorization"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        id root = status == 200 && data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        if (![root isKindOfClass:NSDictionary.class]) {
+            SGLog(@"true shuffle: %@ answered %ld%@", url, (long)status, error ? [@", " stringByAppendingString:error.localizedDescription] : @"");
+            dispatch_async(dispatch_get_main_queue(), ^{ done(into); });
+            return;
+        }
+        for (NSDictionary *item in [root[@"items"] isKindOfClass:NSArray.class] ? root[@"items"] : @[]) {
+            if (![item isKindOfClass:NSDictionary.class]) continue;
+            NSDictionary *track = [item[@"track"] isKindOfClass:NSDictionary.class] ? item[@"track"] : item;
+            if ([track[@"uri"] isKindOfClass:NSString.class] && ![track[@"is_local"] boolValue]) [into addObject:track[@"uri"]];
+        }
+        NSString *next = [root[@"next"] isKindOfClass:NSString.class] ? root[@"next"] : nil;
+        fetchPages(next, into, authorization, pages + 1, done);
+    }] resume];
+}
+
+static void fetchWebAPI(NSString *first, void (^done)(NSArray<NSString *> *uris)) {
+    SGSpclientHeaders(^(NSDictionary<NSString *, NSString *> *headers) {
+        NSString *authorization = headers[@"authorization"];
+        if (!authorization) {
+            done(@[]);
+            return;
+        }
+        fetchPages(first, [NSMutableArray array], authorization, 0, ^(NSArray<NSString *> *uris) {
+            SGLog(@"true shuffle: %lu tracks from the Web API", (unsigned long)uris.count);
+            done(uris);
+        });
+    });
+}
+
+// The tracks of a context true shuffle deals: a playlist, an album or Liked Songs; nil for any other.
+static BOOL fetchContext(NSString *context, void (^done)(NSArray<NSString *> *uris)) {
+    NSString *last = [context componentsSeparatedByString:@":"].lastObject;
+    if ([context hasPrefix:@"spotify:playlist:"]) {
+        fetchPlaylist(last, done);
+        return YES;
+    }
+    if ([context hasPrefix:@"spotify:album:"]) {
+        fetchWebAPI([NSString stringWithFormat:@"https://api.spotify.com/v1/albums/%@/tracks?limit=50", last], done);
+        return YES;
+    }
+    if ([context hasSuffix:@":collection"] || [context hasPrefix:@"spotify:collection"]) {
+        fetchWebAPI(@"https://api.spotify.com/v1/me/tracks?limit=50", done);
+        return YES;
+    }
+    return NO;
 }
 
 // Fisher-Yates, `first` (the song playing) kept at the front.
@@ -163,8 +224,7 @@ static NSInteger positionMs(SPTPlayerState *state) {
 
 - (void)dealFor:(NSString *)contextURI track:(NSString *)track {
     _busy = YES;
-    NSString *playlistID = [contextURI componentsSeparatedByString:@":"].lastObject;
-    fetchPlaylist(playlistID, ^(NSArray<NSString *> *uris) {
+    BOOL known = fetchContext(contextURI, ^(NSArray<NSString *> *uris) {
         if (uris.count < 3) {
             SGLog(@"true shuffle: %@ has %lu tracks to deal; Spotify's shuffle stays", contextURI, (unsigned long)uris.count);
             self->_busy = NO;
@@ -174,6 +234,7 @@ static NSInteger positionMs(SPTPlayerState *state) {
         if ([self play:contextURI order:order withURI:YES]) [self check:contextURI order:order withURI:YES];
         else self->_busy = NO;
     });
+    if (!known) _busy = NO;
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
@@ -184,8 +245,10 @@ static NSInteger positionMs(SPTPlayerState *state) {
     _wasShuffling = shuffling;
     _lastContext = context;
     if (!turnedOn || _busy || !SGEnabled(SGKeyTrueShuffle)) return;
-    if (![context hasPrefix:@"spotify:playlist:"]) {
-        SGLog(@"true shuffle: %@ is not a playlist; Spotify's shuffle stays", context ?: @"no context");
+    BOOL dealt = [context hasPrefix:@"spotify:playlist:"] || [context hasPrefix:@"spotify:album:"]
+              || [context hasSuffix:@":collection"] || [context hasPrefix:@"spotify:collection"];
+    if (!dealt) {
+        SGLog(@"true shuffle: %@ is not a playlist, an album or Liked Songs; Spotify's shuffle stays", context ?: @"no context");
         return;
     }
     [self dealFor:context track:SGURIString(state.track.URI)];
