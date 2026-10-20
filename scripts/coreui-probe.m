@@ -6,7 +6,7 @@ int main(void) {
         [[NSBundle bundleWithPath:@"/System/Library/PrivateFrameworks/CoreUI.framework"] load];
         NSString *ctd = @"/Applications/Xcode.app/Contents/SharedFrameworks/CoreThemeDefinition.framework";
         if (![[NSBundle bundleWithPath:ctd] load]) printf("CoreThemeDefinition did not load\n");
-        for (NSString *name in @[@"CUICommonAssetStorage", @"CUIMutableCommonAssetStorage", @"CUIStructuredThemeStore", @"CUIMutableStructuredThemeStore", @"CoreThemeDocument", @"TDDistiller"]) {
+        for (NSString *name in @[@"CUICommonAssetStorage", @"CUIMutableCommonAssetStorage", @"CUIStructuredThemeStore", @"CUIMutableStructuredThemeStore", @"CUIRenditionKey"]) {
             Class c = NSClassFromString(name);
             if (!c) { printf("%s missing\n", name.UTF8String); continue; }
             unsigned int count = 0;

@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v5
       - run: |
           clang -fobjc-arc -framework Foundation scripts/coreui-probe.m -o probe
-          ./probe | grep -viE " -_" | awk '{print $1, $2}' | grep -iE "missing|load|init|set|remove|write|save|asset|rendition|key|name|facet" > out.txt || true
+          ./probe | grep -viE " -_" | grep -E "CUIRenditionKey|setAsset|removeAsset|assetForKey|allAssetKeys|enumerateKeysAndObjects|setRenditionKey|missing|load" > out.txt || true
           wc -l out.txt
           split -b 3500 out.txt part.
           for f in part.*; do echo "::notice title=coreui::$(sed -e 's/%/%25/g' "$f" | awk 'BEGIN{ORS="%0A"} {print}')"; done
