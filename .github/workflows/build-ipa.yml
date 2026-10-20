@@ -20,6 +20,10 @@ on:
         description: "Add the Open in Spotify Safari extension (BillyCurtis/OpenSpotifySafariExtension)"
         default: true
         type: boolean
+      icon_ipa_url:
+        description: "Optional: a direct link to another Spotify IPA whose app icon to use (an older one with the glass icon)"
+        required: false
+        type: string
       bundle_id:
         description: "Bundle ID to set, matching the App ID of the certificate that signs it (empty keeps com.spotify.client)"
         default: "app.asparagus7684.aurora3945"
@@ -57,6 +61,33 @@ jobs:
           mkdir -p ipa
           curl -fsSL "${{ inputs.ipa_url }}" -o ipa/spotify.ipa
           case "$(file --mime-type -b ipa/spotify.ipa)" in application/zip|application/x-ios-app) ;; *) echo "::error::Not an IPA"; exit 1 ;; esac
+
+      # The app icon of another Spotify IPA (Old icon): its renditions moved into this one's Assets.car by
+      # scripts/icon-transplant.m, through CoreUI, and its loose AppIcon PNGs copied over. Nothing else of the
+      # other IPA is used. When the move fails the build goes on with Spotify's own icon.
+      - name: Use the other IPA's app icon
+        if: inputs.icon_ipa_url != ''
+        run: |
+          set -o pipefail
+          mkdir -p icon/old icon/new
+          curl -fsSL "${{ inputs.icon_ipa_url }}" -o icon/old.ipa
+          unzip -q icon/old.ipa 'Payload/*.app/Assets.car' 'Payload/*.app/AppIcon*' -d icon/old
+          (cd icon/new && unzip -q ../../ipa/spotify.ipa)
+          APP="$(ls -d icon/new/Payload/*.app)"
+          OLD="$(ls -d icon/old/Payload/*.app)"
+          clang -fobjc-arc -framework Foundation -framework CoreGraphics -F/System/Library/PrivateFrameworks -framework CoreUI \
+            scripts/icon-transplant.m -o icon/icon-transplant
+          cp "$APP/Assets.car" icon/Assets.car
+          if icon/icon-transplant "$OLD/Assets.car" icon/Assets.car 2>&1 | tee icon/log.txt; then
+            cp icon/Assets.car "$APP/Assets.car"
+            cp "$OLD"/AppIcon*.png "$APP/" 2>/dev/null || true
+            (cd icon/new && rm -f ../../ipa/spotify.ipa && zip -qr -y ../../ipa/spotify.ipa Payload)
+            xcrun --sdk iphoneos assetutil --info "$APP/Assets.car" > icon/info.json 2>/dev/null || true
+            python3 -c 'import json; d=json.load(open("icon/info.json")); print("\n".join(sorted(set(str(e.get("Name")) + " " + str(e.get("AssetType")) for e in d[1:] if str(e.get("Name", "")).startswith("AppIcon")))))' >> icon/log.txt 2>/dev/null || true
+            echo "::notice title=Old icon::$(sed -e 's/%/%25/g' icon/log.txt | awk 'BEGIN{ORS="%0A"} {print}')"
+          else
+            echo "::warning title=Old icon not moved::$(sed -e 's/%/%25/g' icon/log.txt | awk 'BEGIN{ORS="%0A"} {print}')"
+          fi
 
       # A prebuilt Safari web extension that sends open.spotify.com pages to the app. Pinned to a commit,
       # since it is a binary from another repo. Its content script opens spotify://eevee/... links, which
