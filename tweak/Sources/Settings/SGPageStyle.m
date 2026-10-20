@@ -1,5 +1,5 @@
 #import "SGPageStyle.h"
-#import "SGGlassSections.h"
+#import "SGSettingsLook.h"
 #import "Core/SGCore.h"
 
 static UIFont *sg_spotifyFont;
@@ -10,8 +10,10 @@ UIColor *SGGrey(void) { return [UIColor colorWithRed:0xEB / 255.0 green:0xEB / 2
 // Spotify's typeface at the sizes of its own lists, asked for by name so the app font of Shared/Fonts follows,
 // and the system font before Spotify has registered it. Grown with Dynamic Type through the accessibility
 // sizes, with no cap: the rows laid out by hand measure their text from these fonts.
+// In the redesign, the system font at Settings' own sizes (SGSettingsLook.h).
 static UIFont *scaled(UIFontTextStyle style, CGFloat size) {
-    UIFont *font = [UIFont fontWithName:@"SpotifyMixUI-Regular" size:size] ?: [UIFont systemFontOfSize:size];
+    if (SGPagesNativeLook) size = size >= 13 ? 17 : 13;
+    UIFont *font = SGPagesNativeLook ? [UIFont systemFontOfSize:size] : [UIFont fontWithName:@"SpotifyMixUI-Regular" size:size] ?: [UIFont systemFontOfSize:size];
     return [[UIFontMetrics metricsForTextStyle:style] scaledFontForFont:font];
 }
 

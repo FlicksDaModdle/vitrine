@@ -1,7 +1,7 @@
 // The pages a file effect's row and the Graphic EQ's row push: a library of files with the chosen one
 // ticked, and the GraphicEQ text to paste or edit. Each shows the effect's error, if its last change did
 // not take, in a red card at the top, looked at again once a second while the page is open.
-#import "Settings/SGGlassSections.h"
+#import "Settings/SGSettingsLook.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "Core/SGCore.h"
 #import "Settings/SGPage.h"

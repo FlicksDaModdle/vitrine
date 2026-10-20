@@ -1,6 +1,6 @@
 #import "SGPage.h"
 #import "SGPageStyle.h"
-#import "SGGlassSections.h"
+#import "SGSettingsLook.h"
 #import "Core/SGCore.h"
 
 
@@ -22,12 +22,6 @@ static BOOL sg_pagesConform;
     self.tableView.backgroundColor = SGPageBackground();
     self.tableView.separatorColor = [UIColor colorWithWhite:1 alpha:0.1];
     self.tableView.sectionHeaderTopPadding = 0;
-}
-
-// In the redesign each section stands on glass (SGGlassSections.h).
-- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    if (SGPagesUseGlass && self.isViewLoaded) SGGlassSections(self.tableView, SGTableSectionRects(self.tableView), SGGlassSectionRadius);
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previous {

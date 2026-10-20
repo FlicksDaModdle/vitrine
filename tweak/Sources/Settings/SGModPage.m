@@ -1,6 +1,6 @@
 #import <CoreText/SFNTLayoutTypes.h>
 #import "SGModPage.h"
-#import "SGGlassSections.h"
+#import "SGSettingsLook.h"
 #import "SGPageStyle.h"
 #import "SGGlowSwitch.h"
 #import "Core/SGCore.h"
