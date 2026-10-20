@@ -154,10 +154,22 @@ int main(int argc, const char *argv[]) {
                 continue;
             }
             if (intoFacet.count) {
+                // Whether the two icons differ at all: each of INTO's renditions of the name, its size and whether FROM
+                // has the same bytes under the name.
+                NSMutableSet<NSData *> *fromAssets = [NSMutableSet set];
+                for (id key in fromKeys) {
+                    NSDictionary *attributes = attributesOf(key);
+                    if (!matches(attributes, fromFacet)) continue;
+                    NSData *asset = [from assetForKey:keyFrom(attributes, fromFormat)];
+                    if (asset) [fromAssets addObject:asset];
+                }
                 for (id key in intoKeys) {
                     NSDictionary *attributes = attributesOf(key);
                     if (!matches(attributes, intoFacet)) continue;
                     NSData *raw = keyFrom(attributes, intoFormat);
+                    NSData *asset = [into assetForKey:raw];
+                    printf("  %s: into has %lu bytes, %s\n", name.UTF8String, (unsigned long)asset.length,
+                           [fromAssets containsObject:asset ?: NSData.data] ? "the same in from" : "different in from");
                     [into removeAssetForKey:raw.bytes withLength:raw.length];
                     removed++;
                 }
