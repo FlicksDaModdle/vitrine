@@ -30,7 +30,8 @@ static NSURL *sg_vitrineToSpotify(NSURL *url) {
 // A scene-based launch or open reads the link off its UIOpenURLContext.
 %hook UIOpenURLContext
 - (NSURL *)URL {
-    return sg_vitrineToSpotify(%orig);
+    NSURL *url = %orig;
+    return sg_vitrineToSpotify(url);
 }
 %end
 
