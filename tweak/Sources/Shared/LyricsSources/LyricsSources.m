@@ -446,41 +446,29 @@ static void finish(SGLyricsWalk *walk) {
     for (void (^done)(SGLyricsResult *) in waiting) done(lyrics);
 }
 
-static void step(SGLyricsWalk *walk) {
-    SGLyricsQuery *query = walk.query;
+// Every source of the order is asked at once, and the answers are taken in the order's order as they come: the
+// walk ends at the first source down the order that has timed lyrics once every source above it has answered.
+// Asked one after another, the misses above it came first, each up to kTimeout and a second ask under the song's
+// own title: a Tamil film song's lines came half a minute after it started, when they came at all.
+static id const kNothing = @"nothing";   // a source that answered with nothing
+static id const kSkipped = @"skipped";   // passed over for want of a name
+
+static void walkAll(SGLyricsWalk *walk);
+
+// Under the walk's lock: takes in what has come, down the order, and ends the walk when it can.
+static void advance(SGLyricsWalk *walk, NSMutableArray *answers, BOOL *done) {
     SGLyricsResult *merged = walk.merged;
-    // A source higher in the order has answered with timed lyrics: that is the answer.
-    if (merged.synced && merged.texts.count && merged.karaokeLines.count) {
-        finish(walk);
-        return;
-    }
-    if (walk.index >= walk.order.count) {
-        // A source that matches by id named the track partway down: the ones passed over ask now,
-        // in the order they came in. Once, since they cannot be passed over again with a name.
-        if (walk.passedOver.count && named(query)) {
-            SGLog(@"lyrics: %@ named partway as \"%@\" by \"%@\", asking %@ after all", query.trackID,
-                  query.title, query.artist, [walk.passedOver componentsJoinedByString:@", "]);
-            walk.order = walk.passedOver;
-            walk.index = 0;
-            walk.passedOver = [NSMutableArray array];
-            step(walk);
-            return;
-        }
-        finish(walk);
-        return;
-    }
-    SGLyricsProvider *provider = SGLyricsProviderFor(walk.order[walk.index++]);
-    if (provider.needsName && !named(query)) {
-        [walk.passedOver addObject:provider.key];
-        step(walk);
-        return;
-    }
-    void (^answered)(SGLyricsResult *) = ^(SGLyricsResult *fresh) {
-        learnFrom(query, fresh);
+    while (!*done && walk.index < answers.count && answers[walk.index] != NSNull.null) {
+        id answer = answers[walk.index];
+        SGLyricsProvider *provider = SGLyricsProviderFor(walk.order[walk.index]);
+        walk.index++;
+        if (answer == kSkipped || answer == kNothing) continue;
+        SGLyricsResult *fresh = answer;
         noteCredit(fresh);
         if (fresh.instrumental) {
-            SGLog(@"lyrics: %@ is instrumental, by %@", query.trackID, provider.key);
+            SGLog(@"lyrics: %@ is instrumental, by %@", walk.query.trackID, provider.key);
             merged.instrumental = YES;
+            *done = YES;
             finish(walk);
             return;
         }
@@ -497,25 +485,76 @@ static void step(SGLyricsWalk *walk) {
             // Spotify's page names the source of its own text, which can be another than the lines'.
             merged.pageProvider = fresh.provider ?: provider.name;
         }
-        step(walk);
-    };
-    provider.ask(query, ^(SGLyricsResult *fresh) {
-        // A source searching by name that found nothing under Spotify's film-song title asks once more under the
-        // song's own (SGLyricsCleanTitle).
-        NSString *clean = provider.needsName && !hasLyrics(fresh) ? SGLyricsCleanTitle(query.title) : nil;
-        if (!clean) {
-            answered(fresh);
+        // A source higher in the order has answered with timed lyrics: that is the answer.
+        if (merged.synced && merged.texts.count && merged.karaokeLines.count) {
+            *done = YES;
+            finish(walk);
             return;
         }
-        SGLyricsQuery *again = [SGLyricsQuery new];
-        again.trackID = query.trackID;
-        again.title = clean;
-        again.artist = query.artist;
-        again.album = query.album;
-        again.seconds = query.seconds;
-        SGLog(@"lyrics: %@ found nothing for \"%@\", asking again as \"%@\"", provider.key, query.title, clean);
-        provider.ask(again, answered);
-    });
+    }
+    if (*done || walk.index < answers.count) return;
+    *done = YES;
+    // A source that matches by id named the track partway down: the ones passed over ask now, in the order they
+    // came in. Once, since they cannot be passed over again with a name.
+    if (walk.passedOver.count && named(walk.query)) {
+        SGLog(@"lyrics: %@ named partway as \"%@\" by \"%@\", asking %@ after all", walk.query.trackID,
+              walk.query.title, walk.query.artist, [walk.passedOver componentsJoinedByString:@", "]);
+        walk.order = walk.passedOver;
+        walk.passedOver = [NSMutableArray array];
+        walkAll(walk);
+        return;
+    }
+    finish(walk);
+}
+
+static void walkAll(SGLyricsWalk *walk) {
+    SGLyricsQuery *query = walk.query;
+    NSArray<NSString *> *order = walk.order;
+    NSMutableArray *answers = [NSMutableArray arrayWithCapacity:order.count];
+    for (NSUInteger i = 0; i < order.count; i++) [answers addObject:NSNull.null];
+    walk.index = 0;
+    __block BOOL done = NO;
+    NSMutableArray<void (^)(void)> *asks = [NSMutableArray array];
+    for (NSUInteger i = 0; i < order.count; i++) {
+        SGLyricsProvider *provider = SGLyricsProviderFor(order[i]);
+        if (!provider || (provider.needsName && !named(query))) {
+            if (provider) [walk.passedOver addObject:provider.key];
+            answers[i] = kSkipped;
+            continue;
+        }
+        void (^answered)(SGLyricsResult *) = ^(SGLyricsResult *fresh) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                learnFrom(query, fresh);
+                answers[i] = fresh ?: kNothing;
+                BOOL ended = done;
+                advance(walk, answers, &ended);
+                done = ended;
+            });
+        };
+        [asks addObject:^{
+            provider.ask(query, ^(SGLyricsResult *fresh) {
+                // A source searching by name that found nothing under Spotify's film-song title asks once more under
+                // the song's own (SGLyricsCleanTitle).
+                NSString *clean = provider.needsName && !hasLyrics(fresh) ? SGLyricsCleanTitle(query.title) : nil;
+                if (!clean) {
+                    answered(fresh);
+                    return;
+                }
+                SGLyricsQuery *again = [SGLyricsQuery new];
+                again.trackID = query.trackID;
+                again.title = clean;
+                again.artist = query.artist;
+                again.album = query.album;
+                again.seconds = query.seconds;
+                SGLog(@"lyrics: %@ found nothing for \"%@\", asking again as \"%@\"", provider.key, query.title, clean);
+                provider.ask(again, answered);
+            });
+        }];
+    }
+    BOOL ended = done;
+    advance(walk, answers, &ended);   // every source passed over: nothing to wait for
+    done = ended;
+    if (!done) for (void (^ask)(void) in asks) ask();
 }
 
 static void startWalk(NSString *trackID, SGLyricsQuery *query) {
@@ -527,7 +566,7 @@ static void startWalk(NSString *trackID, SGLyricsQuery *query) {
     walk.merged = [SGLyricsResult new];
     walk.passedOver = [NSMutableArray array];
     walk.failuresAtStart = atomic_load(&sg_failures);
-    step(walk);
+    walkAll(walk);
 }
 
 // Starts the walk as soon as the player has named the track, or once it has waited long enough
