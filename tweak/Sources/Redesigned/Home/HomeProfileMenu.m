@@ -21,7 +21,20 @@
 #import "Settings/SGPage.h"
 #import "Home.h"
 
-static const NSTimeInterval kFindEvery = 0.1, kFindFor = 2.5, kSettle = 0.35, kCloseFor = 2.5;
+static const NSTimeInterval kFindEvery = 0.05, kFindFor = 2.5, kSettle = 0.08, kCloseFor = 2.5;
+// While the cover hides it, the app's window runs its animations this many times faster: the drawer's slide in and
+// out, and the push of the page the row opens, which the eye never sees, were most of the wait.
+static const float kHiddenSpeed = 6;
+static __weak UIWindow *sg_sped;
+
+// A layer's speed changed in place, keeping its local time where it is, so nothing in flight jumps.
+static void setSpeed(CALayer *layer, float speed) {
+    if (layer.speed == speed) return;
+    CFTimeInterval now = CACurrentMediaTime();
+    layer.timeOffset = [layer convertTime:now fromLayer:nil];
+    layer.beginTime = now;
+    layer.speed = speed;
+}
 
 // The still picture of the screen, in a window of its own above every other: the drawer comes in a container
 // Spotify adds over the page after the picture, so a picture inside the page's window ends up under it.
@@ -43,9 +56,12 @@ static void cover(UIWindow *window) {
 }
 
 static void uncover(void) {
+    UIWindow *sped = sg_sped;
+    sg_sped = nil;
+    if (sped) setSpeed(sped.layer, 1);
     UIWindow *window = sg_cover;
     sg_cover = nil;
-    [UIView animateWithDuration:0.25 animations:^{ window.alpha = 0; } completion:^(BOOL finished) { window.hidden = YES; }];
+    [UIView animateWithDuration:0.2 animations:^{ window.alpha = 0; } completion:^(BOOL finished) { window.hidden = YES; }];
 }
 
 // Whether the drawer is still on screen, in any of the scene's windows but the cover.
@@ -123,7 +139,7 @@ static void openRow(UIView *row, UIWindowScene *scene) {
     SGLog(@"redesign home: profile menu fires %@ (%@)", row.accessibilityIdentifier, NSStringFromClass(listRow.class));
     SGRActivate(listRow);
     // Still in the drawer a moment on: the cell's own taps instead.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!drawerShown(scene) || !row.window) return;
         BOOL fired = fireTaps(listRow);
         SGLog(@"redesign home: profile menu %@ through the cell's taps", fired ? @"opened it" : @"found no tap to fire");
@@ -167,6 +183,10 @@ static void openThroughDrawer(UIControl *avatar, NSString *identifier) {
     UIWindowScene *scene = window.windowScene;
     if (!window || !scene || sg_cover) return;
     cover(window);
+    if (sg_cover) {
+        sg_sped = window;
+        setSpeed(window.layer, kHiddenSpeed);
+    }
     SGRActivate(avatar);
     lookFor(identifier, scene, 0);
 }
@@ -222,7 +242,13 @@ NSArray<UIMenuElement *> *SGRHomeProfileMenuElements(UIView *face) {
     UIPreviewParameters *parameters = [UIPreviewParameters new];
     parameters.backgroundColor = UIColor.clearColor;
     parameters.visiblePath = [UIBezierPath bezierPathWithOvalInRect:source.bounds];
-    return [[UITargetedPreview alloc] initWithView:source parameters:parameters];
+    // Aimed at where the avatar is seen, worked out through every transform over it: Library moves its avatar by a
+    // transform on the face around it (LibraryHeader.x), and the menu shrank to where it stood unmoved, the avatar
+    // staying hidden until that slower flight ended.
+    UIView *container = self.superview ?: source.superview;
+    CGPoint center = [container convertPoint:CGPointMake(CGRectGetMidX(source.bounds), CGRectGetMidY(source.bounds)) fromView:source];
+    UIPreviewTarget *target = [[UIPreviewTarget alloc] initWithContainer:container center:center];
+    return [[UITargetedPreview alloc] initWithView:source parameters:parameters target:target];
 }
 - (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
     previewForHighlightingMenuWithConfiguration:(UIContextMenuConfiguration *)configuration {

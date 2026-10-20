@@ -23,6 +23,7 @@ static const CGFloat kMaxFont = 26;
 static const CGFloat kReach = 36, kFade = 28;
 
 @interface SGRPreviewLineView : UIView
+@property (nonatomic, weak) UIView *band;   // the preview it draws for, when it stands outside it
 @end
 
 static NSHashTable<UIView *> *sg_lines;
@@ -112,6 +113,14 @@ CGFloat SGRPreviewLineRest(void) {
     CGFloat size = chosen > 0 ? chosen : MIN(SGRLyricsLookNow().size, kMaxFont);
     BOOL both = SGFlag(SGKeyLyricsRomanised, NO) && SGInt(SGKeyLyricsRomanisedMode, 0) != 1;
     return kTopRoom + ceil(size * 1.3 * (both ? 1.8 : 1));
+}
+
+void SGRPreviewLineSetBand(UIView *line, UIView *band) {
+    if ([line isKindOfClass:SGRPreviewLineView.class]) ((SGRPreviewLineView *)line).band = band;
+}
+
+UIView *SGRPreviewLineBand(UIView *line) {
+    return [line isKindOfClass:SGRPreviewLineView.class] ? ((SGRPreviewLineView *)line).band : nil;
 }
 
 CGFloat SGRPreviewLineReach(void) {

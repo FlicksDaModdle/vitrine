@@ -144,6 +144,8 @@ UIView *SGRPreviewLineMake(void);
 CGFloat SGRPreviewLineReach(void);
 void SGRPreviewLineSetLift(UIView *line, CGFloat lift);
 CGFloat SGRPreviewLineRest(void);
+void SGRPreviewLineSetBand(UIView *line, UIView *band);
+UIView *SGRPreviewLineBand(UIView *line);
 // How far the cover was moved down for the room under the lyric line (PlayerLyricsPreviewTap.x), for a view inside it.
 CGFloat SGRPreviewShiftAbove(UIView *view);
 // Where the title row (the track's name and artist) stands, untransformed, in `host`; CGRectNull when it is not up.
