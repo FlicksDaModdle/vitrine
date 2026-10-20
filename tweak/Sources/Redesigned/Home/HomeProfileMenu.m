@@ -5,99 +5,170 @@
 //
 // A row is opened through the drawer, which is the only thing that knows where each one leads: the window is
 // covered by a still picture of itself, the drawer is opened under it by the avatar's own button, the row is found
-// by its accessibility identifier and selected the way a tap selects it, and the picture fades once the page it
-// opens is up. A row not found in time leaves the drawer open, the picture gone, for a tap by hand.
+// by its accessibility identifier and its list row fired the way a tap fires it (the cell's own taps if that does
+// not take), and the picture fades once the drawer has closed behind the page it opened. A row not found in time
+// leaves the drawer open, the picture gone, for a tap by hand.
 //
 // The drawer (Diagnostics/DrawerProbe.x, Spotify 9.1.90): SideDrawer_ECMKit.SideDrawerContainer >
 // SideDrawer_ListPageImpl.ListViewController > SideDrawerListCollectionView, its rows Element_List cells:
 // SideDrawer.YourSoundCapsule (Listening stats), .Recents, .TasteProfile, .YourUpdates, .Settings,
 // Components.UI.YourPlanRowSideDrawer (Your Premium), AccountSwitching.AddAccountRow, and the profile card's
 // Encore.ListRow holding "View profile".
+#import <objc/message.h>
 #import <objc/runtime.h>
 #import "Core/SGCore.h"
 #import "Redesigned/Kit/SGRKit.h"
 #import "Settings/SGPage.h"
 #import "Home.h"
 
-static const NSTimeInterval kFindEvery = 0.1, kFindFor = 2.5, kHoldAfter = 0.7;
+static const NSTimeInterval kFindEvery = 0.1, kFindFor = 2.5, kSettle = 0.35, kCloseFor = 2.5;
 
-static UIView *sg_cover;   // the still picture over the window while a row opens
+// The still picture of the screen, in a window of its own above every other: the drawer comes in a container
+// Spotify adds over the page after the picture, so a picture inside the page's window ends up under it.
+static UIWindow *sg_cover;
 
-static void uncover(void) {
-    UIView *cover = sg_cover;
-    sg_cover = nil;
-    [UIView animateWithDuration:0.25 animations:^{ cover.alpha = 0; } completion:^(BOOL finished) { [cover removeFromSuperview]; }];
+static void cover(UIWindow *window) {
+    UIView *picture = [window snapshotViewAfterScreenUpdates:NO];
+    if (!picture || !window.windowScene) return;
+    sg_cover = [[UIWindow alloc] initWithWindowScene:window.windowScene];
+    sg_cover.windowLevel = UIWindowLevelStatusBar + 50;
+    sg_cover.frame = window.frame;
+    UIViewController *holder = [UIViewController new];
+    holder.view.backgroundColor = UIColor.blackColor;
+    picture.frame = holder.view.bounds;
+    picture.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [holder.view addSubview:picture];
+    sg_cover.rootViewController = holder;
+    sg_cover.hidden = NO;   // shown, not made key: the app's own window keeps the keyboard and its presentations
 }
 
-static UIView *rowIn(UIView *window, NSString *identifier) {
+static void uncover(void) {
+    UIWindow *window = sg_cover;
+    sg_cover = nil;
+    [UIView animateWithDuration:0.25 animations:^{ window.alpha = 0; } completion:^(BOOL finished) { window.hidden = YES; }];
+}
+
+// Whether the drawer is still on screen, in any of the scene's windows but the cover.
+static BOOL drawerShown(UIWindowScene *scene) {
+    for (UIWindow *window in scene.windows) {
+        if (window == sg_cover || window.hidden) continue;
+        __block BOOL shown = NO;
+        SGForEachView(window, ^(UIView *v) {
+            if (!shown && [v.accessibilityIdentifier isEqualToString:@"SideDrawerView"] && v.window && v.alpha > 0.01 && !v.hidden) {
+                CGRect onScreen = [v convertRect:v.bounds toView:nil];
+                shown = CGRectIntersectsRect(onScreen, window.bounds) && CGRectGetMaxX(onScreen) > 20;
+            }
+        });
+        if (shown) return YES;
+    }
+    return NO;
+}
+
+static UIView *rowIn(UIWindowScene *scene, NSString *identifier) {
     __block UIView *row = nil;
     BOOL profile = [identifier isEqualToString:@"profile"];
-    SGForEachView(window, ^(UIView *v) {
-        if (row) return;
-        if (!profile && [v.accessibilityIdentifier isEqualToString:identifier]) row = v;
-        if (profile && [v isKindOfClass:UILabel.class] && [((UILabel *)v).text isEqualToString:@"View profile"]) {
-            for (UIView *up = v.superview; up; up = up.superview) {
-                if ([up.accessibilityIdentifier isEqualToString:@"Encore.ListRow"]) { row = up; break; }
+    for (UIWindow *window in scene.windows) {
+        if (window == sg_cover || row) continue;
+        SGForEachView(window, ^(UIView *v) {
+            if (row) return;
+            if (!profile && [v.accessibilityIdentifier isEqualToString:identifier]) row = v;
+            if (profile && [v isKindOfClass:UILabel.class] && [((UILabel *)v).text isEqualToString:@"View profile"]) {
+                for (UIView *up = v.superview; up; up = up.superview) {
+                    if ([up.accessibilityIdentifier isEqualToString:@"Encore.ListRow"]) { row = up; break; }
+                }
             }
-        }
-    });
+        });
+    }
     return row;
 }
 
-// The way a tap selects the row: its list's own selection where the list takes one, else its control or its
-// accessibility action.
-static void openRow(UIView *row) {
-    UICollectionViewCell *cell = nil;
-    for (UIView *v = row; v; v = v.superview) {
-        if ([v isKindOfClass:UICollectionViewCell.class]) { cell = (UICollectionViewCell *)v; break; }
+// The row's Encore list row, the view that answers a tap: the row itself (Your Premium, Add account, the profile)
+// or the one inside its container (the navigation rows, SideDrawer.Recents > Encore.ListRow).
+static UIView *listRowIn(UIView *row) {
+    if ([NSStringFromClass(row.class) containsString:@"ListRow"]) return row;
+    __block UIView *found = nil;
+    SGForEachView(row, ^(UIView *v) {
+        if (!found && [NSStringFromClass(v.class) containsString:@"ListRow"]) found = v;
+    });
+    return found ?: row;
+}
+
+// The taps the row's cell listens for, fired as a tap would: what Element_List rows answer when their list row has
+// no control of its own to fire.
+static BOOL fireTaps(UIView *row) {
+    BOOL fired = NO;
+    for (UIView *v = row; v && ![v isKindOfClass:UICollectionView.class]; v = v.superview) {
+        for (UIGestureRecognizer *gesture in v.gestureRecognizers) {
+            if (![gesture isKindOfClass:UITapGestureRecognizer.class]) continue;
+            Ivar targetsIvar = class_getInstanceVariable(UIGestureRecognizer.class, "_targets");
+            NSArray *targets = targetsIvar ? object_getIvar(gesture, targetsIvar) : nil;
+            for (id entry in [targets isKindOfClass:NSArray.class] ? targets : @[]) {
+                Ivar targetIvar = class_getInstanceVariable([entry class], "_target");
+                Ivar actionIvar = class_getInstanceVariable([entry class], "_action");
+                if (!targetIvar || !actionIvar) continue;
+                id target = object_getIvar(entry, targetIvar);
+                SEL action = *(SEL *)((uint8_t *)(__bridge void *)entry + ivar_getOffset(actionIvar));
+                if (!target || !action || ![target respondsToSelector:action]) continue;
+                ((void (*)(id, SEL, id))objc_msgSend)(target, action, gesture);
+                fired = YES;
+            }
+            if (fired) return YES;
+        }
     }
-    UICollectionView *list = nil;
-    for (UIView *v = cell.superview; v; v = v.superview) {
-        if ([v isKindOfClass:UICollectionView.class]) { list = (UICollectionView *)v; break; }
-    }
-    NSIndexPath *path = cell && list ? [list indexPathForCell:cell] : nil;
-    // The profile card holds two rows in one cell (the profile and Add account): its row is fired, not the cell.
-    BOOL wholeCell = path && ![row.accessibilityIdentifier isEqualToString:@"Encore.ListRow"]
-                  && ![row.accessibilityIdentifier isEqualToString:@"AccountSwitching.AddAccountRow"];
-    if (wholeCell && [list.delegate respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) {
-        SGLog(@"redesign home: profile menu selects %@ in its list", row.accessibilityIdentifier);
-        [list.delegate collectionView:list didSelectItemAtIndexPath:path];
+    return NO;
+}
+
+static void openRow(UIView *row, UIWindowScene *scene) {
+    UIView *listRow = listRowIn(row);
+    SGLog(@"redesign home: profile menu fires %@ (%@)", row.accessibilityIdentifier, NSStringFromClass(listRow.class));
+    SGRActivate(listRow);
+    // Still in the drawer a moment on: the cell's own taps instead.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!drawerShown(scene) || !row.window) return;
+        BOOL fired = fireTaps(listRow);
+        SGLog(@"redesign home: profile menu %@ through the cell's taps", fired ? @"opened it" : @"found no tap to fire");
+    });
+}
+
+// The cover goes once the drawer has closed behind the page it opened, or after kCloseFor, whichever comes first.
+static void uncoverWhenClosed(UIWindowScene *scene, NSTimeInterval waited) {
+    if (!drawerShown(scene) || waited >= kCloseFor) {
+        if (waited >= kCloseFor) SGLog(@"redesign home: profile menu left the drawer open");
+        uncover();
         return;
     }
-    SGLog(@"redesign home: profile menu fires %@", row.accessibilityIdentifier);
-    SGRActivate(row);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFindEvery * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        uncoverWhenClosed(scene, waited + kFindEvery);
+    });
+}
+
+static void lookFor(NSString *identifier, UIWindowScene *scene, NSTimeInterval waited) {
+    UIView *row = rowIn(scene, identifier);
+    if (row) {
+        // The drawer's slide in finished first: a row fired mid-animation does nothing.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSettle * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            openRow(row, scene);
+            uncoverWhenClosed(scene, 0);
+        });
+        return;
+    }
+    if (waited >= kFindFor) {
+        SGLog(@"redesign home: profile menu did not find %@ in the drawer; left open", identifier);
+        uncover();
+        return;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFindEvery * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        lookFor(identifier, scene, waited + kFindEvery);
+    });
 }
 
 static void openThroughDrawer(UIControl *avatar, NSString *identifier) {
     UIWindow *window = avatar.window;
-    if (!window || sg_cover) return;
-    sg_cover = [window snapshotViewAfterScreenUpdates:NO];
-    sg_cover.frame = window.bounds;
-    sg_cover.userInteractionEnabled = YES;
-    [window addSubview:sg_cover];
+    UIWindowScene *scene = window.windowScene;
+    if (!window || !scene || sg_cover) return;
+    cover(window);
     SGRActivate(avatar);
-    __block NSTimeInterval waited = 0;
-    __block void (^look)(void);
-    __block void (^weakLook)(void);
-    look = ^{
-        UIView *row = rowIn(window, identifier);
-        if (row) {
-            openRow(row);
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kHoldAfter * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ uncover(); });
-            weakLook = nil;
-            return;
-        }
-        waited += kFindEvery;
-        if (waited >= kFindFor) {
-            SGLog(@"redesign home: profile menu did not find %@ in the drawer; left open", identifier);
-            uncover();
-            weakLook = nil;
-            return;
-        }
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFindEvery * NSEC_PER_SEC)), dispatch_get_main_queue(), weakLook);
-    };
-    weakLook = look;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFindEvery * NSEC_PER_SEC)), dispatch_get_main_queue(), look);
+    lookFor(identifier, scene, 0);
 }
 
 // The avatar's own button, the one that opens the drawer.
