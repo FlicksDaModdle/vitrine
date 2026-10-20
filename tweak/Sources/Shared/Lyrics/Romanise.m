@@ -59,7 +59,15 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese) {
     NSString *romanised = [kept objectForKey:key];
     if (romanised) return romanised.length ? romanised : nil;
     BOOL kana = japanese || hasKana(text);
-    NSString *source = kana ? readJapanese(text) : text;
+    // Tamil reads the way its listeners spell it (TamilReading.m), and only what else is left goes on.
+    NSString *tamil = kana ? nil : SGTamilReading(text);
+    if (tamil && !has(tamil, @"[\\p{L}&&[^\\p{Latin}]]")) {
+        romanised = [tamil stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        if ([romanised caseInsensitiveCompare:text] == NSOrderedSame) romanised = @"";
+        [kept setObject:romanised forKey:key];
+        return romanised.length ? romanised : nil;
+    }
+    NSString *source = kana ? readJapanese(text) : (tamil ?: text);
     // Han left over is Chinese: its pinyin keeps the tones, and only its punctuation is made ASCII.
     NSString *transform = !kana && has(text, @"\\p{Han}") ? @"Any-Latin; [[:P:][:Zs:]] Latin-ASCII" : @"Any-Latin; Latin-ASCII";
     romanised = [[source stringByApplyingTransform:transform reverse:NO]

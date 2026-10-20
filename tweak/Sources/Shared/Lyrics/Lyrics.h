@@ -28,6 +28,9 @@ extern NSNotificationName const SGLyricsRomanisedDidChangeNotification;
 // reads the same. `japanese` reads kanji the Japanese way, for a song SGLyricsLooksJapanese says is
 // (a line of kanji alone would read as Chinese). Safe off the main thread, and kept per text.
 NSString *SGLyricsRomanised(NSString *text, BOOL japanese);
+// TamilReading.m: Tamil in the spelling its listeners use ("kaadhal", "vandhaan"), the rest of the text
+// as it was; nil when there is no Tamil in it. SGLyricsRomanised reads Tamil through it.
+NSString *SGTamilReading(NSString *text);
 // Whether any of the lines has kana in it.
 @class SGKaraokeLine;
 BOOL SGLyricsLooksJapanese(NSArray<SGKaraokeLine *> *lines);
