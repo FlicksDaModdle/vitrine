@@ -2,7 +2,7 @@
 // (Settings/SGSettingsLook.h). The mod's pages already stand on inset grouped cards and take the system font at
 // Settings' sizes. Spotify's lists, flat #121212 rows as wide as the screen, are inset by 16 pt a side and each
 // section put on one #1C1C1E card with Settings' corner, its rows clear over it, their titles in the system font at
-// 17 pt and anything under them at 15 pt in the secondary gray, a hairline between rows, on black.
+// the mod's pages' type, their icons on gray tiles, a hairline between rows, on black.
 //
 // Spotify's settings (App/ModSettings.x's tree, trees/settings.txt): SettingsListViewController's view holds a
 // SettingsListCollectionView of Element_List cells as wide as the screen, and a page pushed from it a UITableView of
@@ -17,7 +17,7 @@
 #import "Redesigned/Kit/SGRKit.h"
 #import "Redesigned/Kit/SGRRestyle.h"
 
-static char kStyledKey, kRuleKey;
+static char kStyledKey, kRuleKey, kTileKey;
 static const CGFloat kSideInset = 16;
 
 static void clearCell(UIView *cell) {
@@ -50,13 +50,53 @@ static void setType(UIView *cell) {
         CGFloat ya = [a convertPoint:CGPointZero toView:cell].y, yb = [b convertPoint:CGPointZero toView:cell].y;
         return ya < yb ? NSOrderedAscending : ya > yb ? NSOrderedDescending : NSOrderedSame;
     }];
-    UIFont *title = [UIFont systemFontOfSize:17], *detail = [UIFont systemFontOfSize:15];
+    // The mod's own pages' type (Settings/SGPageStyle.h), so the two read as one.
+    UIFont *title = SGTitleFont(), *detail = SGSubtitleFont();
     for (UILabel *label in labels) {
         BOOL first = label == labels.firstObject;
         UIFont *font = first ? title : detail;
         if (![label.font isEqual:font]) label.font = font;
+        if (first && ![label.textColor isEqual:UIColor.whiteColor]) label.textColor = UIColor.whiteColor;
         if (!first && ![label.textColor isEqual:SGGrey()]) label.textColor = SGGrey();
     }
+}
+
+// The row's leading icon on a gray rounded square, white, as the mod's rows lead with their tiles.
+static void setTile(UIView *cell) {
+    __block UIImageView *icon = nil;
+    SGForEachView(cell, ^(UIView *v) {
+        if (icon || ![v isKindOfClass:UIImageView.class] || v.hidden) return;
+        CGRect f = [v convertRect:v.bounds toView:cell];
+        if (f.size.width >= 14 && f.size.width <= 32 && CGRectGetMinX(f) < 60) icon = (UIImageView *)v;
+    });
+    UIView *tile = objc_getAssociatedObject(cell, &kTileKey);
+    if (!icon) {
+        tile.hidden = YES;
+        return;
+    }
+    if (!tile) {
+        tile = [UIView new];
+        tile.userInteractionEnabled = NO;
+        tile.backgroundColor = [UIColor colorWithRed:0x8E / 255.0 green:0x8E / 255.0 blue:0x93 / 255.0 alpha:1];
+        tile.layer.cornerRadius = 7;
+        tile.layer.cornerCurve = kCACornerCurveContinuous;
+        objc_setAssociatedObject(cell, &kTileKey, tile, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    tile.hidden = NO;
+    if (tile.superview != icon.superview) [icon.superview insertSubview:tile belowSubview:icon];
+    else if ([icon.superview.subviews indexOfObject:tile] > [icon.superview.subviews indexOfObject:icon]) [icon.superview insertSubview:tile belowSubview:icon];
+    CGPoint center = icon.center;
+    CGRect frame = CGRectMake(round(center.x - 14.5), round(center.y - 14.5), 29, 29);
+    if (!CGRectEqualToRect(tile.frame, frame)) tile.frame = frame;
+    if (![icon.tintColor isEqual:UIColor.whiteColor]) icon.tintColor = UIColor.whiteColor;
+    if (icon.image.renderingMode != UIImageRenderingModeAlwaysTemplate) icon.image = [icon.image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+}
+
+// A cell narrowed to the card, after the list's pass placed it as wide as the list.
+static void narrow(UIView *cell, CGFloat width) {
+    CGRect frame = cell.frame;
+    if (frame.size.width < width - 1) return;
+    cell.frame = CGRectMake(kSideInset, frame.origin.y, width - 2 * kSideInset, frame.size.height);
 }
 
 // A hairline across the foot of every row but a section's last, from under the title as Settings has it.
@@ -85,7 +125,7 @@ static void setRule(UIView *cell, BOOL shown) {
 
 static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
     NSMutableArray<NSValue *> *rects = [NSMutableArray array];
-    CGFloat width = list.bounds.size.width - list.contentInset.left - list.contentInset.right;
+    CGFloat width = list.bounds.size.width;
     for (NSInteger section = 0; section < list.numberOfSections; section++) {
         CGRect rect = CGRectNull;
         NSInteger items = [list numberOfItemsInSection:section];
@@ -94,6 +134,7 @@ static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
             if (a && !a.hidden && a.frame.size.height > 1) rect = CGRectUnion(rect, a.frame);
         }
         if (CGRectIsNull(rect)) rect = CGRectZero;
+        else if (rect.size.width >= width - 1) rect = CGRectInset(rect, kSideInset, 0);
         [rects addObject:[NSValue valueWithCGRect:rect]];
     }
     // A row of the mod's under the last section, laid in the list as one of its own.
@@ -104,7 +145,7 @@ static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
         for (UIView *sub in list.subviews) {
             if ([sub isKindOfClass:UICollectionReusableView.class] || [sub isKindOfClass:UIVisualEffectView.class] || sub.hidden || sub.alpha < 0.01) continue;
             CGRect f = sub.frame;
-            if (f.size.width < width - 1 || f.size.height < 36 || f.size.height > 90 || sub.layer.zPosition < 0) continue;
+            if (f.size.width < width - 2 * kSideInset - 1 || f.size.height < 36 || f.size.height > 90 || sub.layer.zPosition < 0) continue;
             if (CGRectGetMinY(f) < CGRectGetMaxY(end) - 1 || CGRectGetMinY(f) > CGRectGetMaxY(end) + 40) continue;
             // On the card, not out past its side.
             CGRect narrowed = CGRectMake(CGRectGetMinX(end), f.origin.y, end.size.width, f.size.height);
@@ -116,23 +157,16 @@ static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
     return rects;
 }
 
-// The list inset from the sides, so its cells, made as wide as what is left, stand on cards as Settings' do.
-static void inset(UIScrollView *list) {
-    UIEdgeInsets insets = list.contentInset;
-    if (insets.left == kSideInset && insets.right == kSideInset) return;
-    insets.left = insets.right = kSideInset;
-    list.contentInset = insets;
-}
-
 static void restyle(UIScrollView *list) {
     if (!list.window) return;
     if (list.backgroundColor != UIColor.blackColor) list.backgroundColor = UIColor.blackColor;
     if ([list isKindOfClass:UICollectionView.class]) {
-        inset(list);
         UICollectionView *collection = (UICollectionView *)list;
         for (UICollectionViewCell *cell in collection.visibleCells) {
             clearCell(cell);
+            narrow(cell, list.bounds.size.width);
             setType(cell);
+            setTile(cell);
             NSIndexPath *path = [collection indexPathForCell:cell];
             setRule(cell, path && path.item < [collection numberOfItemsInSection:path.section] - 1);
         }
@@ -142,9 +176,9 @@ static void restyle(UIScrollView *list) {
         // A table lays its cells as wide as itself whatever its inset, so each is narrowed after its pass.
         for (UITableViewCell *cell in table.visibleCells) {
             clearCell(cell);
+            narrow(cell, table.bounds.size.width);
             setType(cell);
-            CGRect frame = cell.frame;
-            if (frame.size.width >= table.bounds.size.width - 1) cell.frame = CGRectInset(frame, kSideInset, 0);
+            setTile(cell);
         }
         NSMutableArray<NSValue *> *rects = [NSMutableArray array];
         for (NSValue *rect in SGTableSectionRects(table))
