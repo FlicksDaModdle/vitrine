@@ -61,7 +61,10 @@ static NSArray<UIMenuElement *> *playerItems(void) {
         [items addObject:[UIAction actionWithTitle:@"Full-Screen Lyrics" image:symbol(@"quote.bubble") identifier:nil
                                            handler:^(UIAction *action) { SGRPlayerShowLyricsScreen(); }]];
     }
-    if (SGRPlayerLyricsAvailable()) [items addObject:SGRLyricsSizesMenu()];
+    if (SGRPlayerLyricsAvailable()) {
+        [items addObject:[UIAction actionWithTitle:@"Lyrics Size…" image:symbol(@"textformat.size") identifier:nil
+                                           handler:^(UIAction *action) { SGRShowLyricsSizePanel(sg_moreButton, 0); }]];
+    }
     if (SGRPlayerLyricsAvailable() && SGRKaraokeCanTranslateNow()) {
         [items addObject:[UIAction actionWithTitle:@"Translate Lyrics" image:symbol(@"translate") identifier:nil
                                            handler:^(UIAction *action) { SGRKaraokeTranslateNow(); }]];

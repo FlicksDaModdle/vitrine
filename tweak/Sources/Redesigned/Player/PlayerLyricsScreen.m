@@ -81,12 +81,7 @@ static NSString *timeText(double seconds) {
     _share = glyphButton(@"square.and.arrow.up", 18, @"Share lyrics", @selector(shareLyrics), self);
     [self.view addSubview:_share];
     // The words' size here (LyricsLook.h), from a menu.
-    _size = glyphButton(@"textformat.size", 17, @"Lyrics size", NULL, nil);
-    _size.menu = [UIMenu menuWithChildren:@[[UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
-        completion(SGRLyricsSizeMenu(SGRLyricsPlaceFullScreen, @"").children);
-    }]]];
-    _size.showsMenuAsPrimaryAction = YES;
-    _size.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    _size = glyphButton(@"textformat.size", 17, @"Lyrics size", @selector(showSize), self);
     [self.view addSubview:_size];
     _cover = [UIImageView new];
     _cover.contentMode = UIViewContentModeScaleAspectFill;
@@ -276,6 +271,10 @@ static NSString *timeText(double seconds) {
     if (!_scrubbing) return;
     _scrubbing = NO;
     SGKaraokeSeek((NSInteger)(_progress.value * 1000));
+}
+
+- (void)showSize {
+    SGRShowLyricsSizePanel(_size, SGRLyricsPlaceFullScreen);
 }
 
 - (void)shareLyrics {

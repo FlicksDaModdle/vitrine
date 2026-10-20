@@ -1966,7 +1966,8 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
     BOOL intelligence = [SGOnDeviceTranslation appleIntelligenceAvailable:language];
     // A translator is offered only for a song in another language than the one it would translate into.
     BOOL translatable = (_foreign || SGHidden(SGKeyLyricsTranslateEverySong)) && _untranslated && (gemini || onDevice || intelligence);
-    BOOL offered = _lines && !_sample && (_hasSpoken || _hasTranslation || translatable);
+    // A view with a place of its own always has Lyrics Size… to offer.
+    BOOL offered = _lines && !_sample && (_hasSpoken || _hasTranslation || translatable || _sizePlace);
     if (!offered) {
         _extrasBox.hidden = YES;
         [self setNeedsLayout];
@@ -2037,6 +2038,15 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
         if (gemini) offer(@"Translate with Gemini", @"sparkles", @"Sends the lyrics to Google", ^(NSArray<SGKaraokeLine *> *lines, NSString *track, NSString *to, SGRTranslated progress, SGRTranslated done) {
             SGLyricsTranslateWithGemini(track, lines, to, done);
         });
+    }
+    // The words' size here, by slider (LyricsLook.h), for a view that has a place of its own.
+    if (_sizePlace) {
+        __weak SGRKaraokeView *weakSelf = self;
+        [items addObject:[UIAction actionWithTitle:@"Lyrics Size…" image:[UIImage systemImageNamed:@"textformat.size"] identifier:nil
+                                           handler:^(UIAction *action) {
+            SGRKaraokeView *view = weakSelf;
+            if (view) SGRShowLyricsSizePanel(view->_extras, view->_sizePlace);
+        }]];
     }
     _extras.menu = [UIMenu menuWithChildren:items];
     _extrasBox.hidden = NO;

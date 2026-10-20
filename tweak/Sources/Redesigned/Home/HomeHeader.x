@@ -194,6 +194,63 @@ static UIButton *pillButton(NSString *symbol, NSString *label) {
     return button;
 }
 
+// The Search tab, chosen through Spotify's tab bar container (NavigationUI_TabBarImpl.TabBarContainerImpl), since its
+// item takes no tap sent to it from outside (the diagnostics' "TabBarItemElementView fired through accessibility"):
+// the tab whose page is Search's, else the one at the Search item's place in the bar.
+static UIViewController *tabContainer(UIViewController *controller) {
+    if (!controller) return nil;
+    if ([NSStringFromClass(controller.class) containsString:@"TabBarContainerImpl"]) return controller;
+    for (UIViewController *child in controller.childViewControllers) {
+        UIViewController *found = tabContainer(child);
+        if (found) return found;
+    }
+    return nil;
+}
+
+static NSString *pageNames(UIViewController *controller) {
+    NSMutableString *names = [NSMutableString stringWithString:NSStringFromClass(controller.class)];
+    if ([controller isKindOfClass:UINavigationController.class]) {
+        UIViewController *root = ((UINavigationController *)controller).viewControllers.firstObject;
+        if (root) [names appendFormat:@" %@", NSStringFromClass(root.class)];
+    }
+    for (UIViewController *child in controller.childViewControllers) [names appendFormat:@" %@", NSStringFromClass(child.class)];
+    return names;
+}
+
+static void goToSearch(UIWindow *window) {
+    UIViewController *container = tabContainer(window.rootViewController);
+    NSArray<UIViewController *> *tabs = [container respondsToSelector:@selector(viewControllers)] ? [(id)container viewControllers] : nil;
+    UIViewController *search = nil;
+    for (UIViewController *tab in [tabs isKindOfClass:NSArray.class] ? tabs : @[]) {
+        NSString *names = pageNames(tab);
+        if ([names containsString:@"Search"] || [names containsString:@"Browse"]) { search = tab; break; }
+    }
+    if (!search && tabs.count) {
+        // The Search item's place among the bar's items, left to right.
+        NSMutableArray<UIView *> *items = [NSMutableArray array];
+        SGForEachView(window, ^(UIView *v) {
+            if ([NSStringFromClass(v.class) containsString:@"TabBarItemElementView"]) [items addObject:v];
+        });
+        [items sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+            return [@([a convertPoint:CGPointZero toView:nil].x) compare:@([b convertPoint:CGPointZero toView:nil].x)];
+        }];
+        UIView *searchItem = SGRFindByIdentifier(window, @"TabBar.Item.Search", &kSearchTabKey);
+        NSUInteger at = NSNotFound;
+        for (NSUInteger i = 0; i < items.count; i++) if (searchItem && [searchItem isDescendantOfView:items[i]]) at = i;
+        if (at == NSNotFound) at = 1;   // Home, Search, Library
+        if (at < tabs.count) search = tabs[at];
+    }
+    if (search && [container respondsToSelector:@selector(setSelectedViewController:)]) {
+        SGLog(@"redesign home: the pill goes to Search (%@)", NSStringFromClass(search.class));
+        [(id)container setSelectedViewController:search];
+        return;
+    }
+    SGLog(@"redesign home: the pill found no Search tab (container %@, %lu tabs)", container ? NSStringFromClass(container.class) : @"none",
+          (unsigned long)tabs.count);
+    UIView *tab = SGRFindByIdentifier(window, @"TabBar.Item.Search", &kSearchTabKey);
+    if (tab) SGRActivate(tab);
+}
+
 static SGRHomePillButtons *buttonsIn(UIView *header) {
     SGRHomePillButtons *buttons = objc_getAssociatedObject(header, &kButtonsKey);
     if (!buttons) {
@@ -206,8 +263,7 @@ static SGRHomePillButtons *buttonsIn(UIView *header) {
         [buttons addSubview:buttons.filter];
         buttons.search = pillButton(@"magnifyingglass", @"Search");
         [buttons.search addAction:[UIAction actionWithHandler:^(UIAction *action) {
-            UIView *tab = SGRFindByIdentifier(sg_header.window, @"TabBar.Item.Search", &kSearchTabKey);
-            if (tab) SGRActivate(tab);
+            goToSearch(sg_header.window);
         }] forControlEvents:UIControlEventTouchUpInside];
         [buttons addSubview:buttons.search];
         buttons.profile = [SGRAvatarMenuButton buttonWithType:UIButtonTypeCustom];

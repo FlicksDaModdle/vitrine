@@ -129,6 +129,9 @@ void SGRPlayerShowLandscape(BOOL show);
 // The lyrics on an upright screen of their own, with a back button and small controls (PlayerLyricsScreen.m),
 // from the ⋯ menu or by holding the footer's lyrics glyph.
 void SGRPlayerShowLyricsScreen(void);
+// The lyrics' size by slider, in a glass popover from `from` (PlayerLyricsSizePanel.m): every place's, or only
+// `onlyPlace`'s (an SGRLyricsPlace; 0 for all three).
+void SGRShowLyricsSizePanel(UIView *from, NSInteger onlyPlace);
 // A tap on Spotify's lyric preview under the cover brings the lyrics into the player, as the lyrics glyph does
 // (PlayerLyricsPreviewTap.x). On until
 // switched off.

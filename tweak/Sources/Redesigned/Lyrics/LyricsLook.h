@@ -34,6 +34,8 @@ void SGRSetLyricsSize(SGRLyricsPlace place, CGFloat size);
 // A menu of the sizes for one place, a checkmark at the one it has; and one of the three places' menus.
 UIMenu *SGRLyricsSizeMenu(SGRLyricsPlace place, NSString *title);
 UIMenu *SGRLyricsSizesMenu(void);
+// Redesigned/Player/PlayerLyricsSizePanel.m: the sizes by slider in a glass popover from `from`, one place's or (0) all.
+void SGRShowLyricsSizePanel(UIView *from, NSInteger onlyPlace);
 
 // The presets, by name, Apple Music's first.
 NSArray<NSString *> *SGRLyricsLookPresetNames(void);
