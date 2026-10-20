@@ -7,6 +7,7 @@
 // ponytail: ICU transliterates rather than reads aloud: Arabic and Hebrew come out as their consonants
 // ("mrhba"), Thai in ISO 11940's spelling rather than the one signs use, and a line mixing Latin with
 // another script loses the Latin part's accents ("Café" as "Cafe"). A reading per language is the upgrade.
+#import "Core/SGCore.h"
 #import "Lyrics.h"
 
 NSNotificationName const SGLyricsRomanisedDidChangeNotification = @"spotifyglass.lyricsRomanisedDidChange";
@@ -81,4 +82,14 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese) {
     if ([romanised caseInsensitiveCompare:text] == NSOrderedSame) romanised = @"";
     [kept setObject:romanised forKey:key];
     return romanised.length ? romanised : nil;
+}
+
+NSString *SGLyricsShownLine(NSString *text) {
+    if (!text.length || !SGFlag(SGKeyLyricsRomanised, NO) || SGInt(SGKeyLyricsRomanisedMode, 0) != 1) return text;
+    return SGLyricsRomanised(text, NO) ?: text;
+}
+
+NSString *SGLyricsLineUnder(NSString *text) {
+    if (!text.length || !SGFlag(SGKeyLyricsRomanised, NO) || SGInt(SGKeyLyricsRomanisedMode, 0) == 1) return nil;
+    return SGLyricsRomanised(text, NO);
 }

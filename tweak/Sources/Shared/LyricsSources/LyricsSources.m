@@ -264,6 +264,32 @@ static SGLyricsQuery *queryFor(NSString *trackID) {
     return query;
 }
 
+// A film song's title as the lyrics sites file it: Spotify's "Song (From "Film")", "Song - From "Film"" and
+// "(Original Motion Picture Soundtrack)" left off. nil when there is nothing to leave off.
+NSString *SGLyricsCleanTitle(NSString *title) {
+    if (!title.length) return nil;
+    static NSArray<NSRegularExpression *> *patterns;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray *list = [NSMutableArray array];
+        for (NSString *pattern in @[@"\\s*[\\(\\[]\\s*from\\s+[\"“”'‘’][^\"“”'‘’]+[\"“”'‘’]\\s*[\\)\\]]",
+                                    @"\\s+[-–—]\\s+from\\s+[\"“”'‘’].*$",
+                                    @"\\s*[\\(\\[]\\s*(original motion picture soundtrack|from the [^\\)\\]]+)\\s*[\\)\\]]"]) {
+            NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:nil];
+            if (re) [list addObject:re];
+        }
+        patterns = list;
+    });
+    NSString *clean = title;
+    for (NSRegularExpression *re in patterns) clean = [re stringByReplacingMatchesInString:clean options:0 range:NSMakeRange(0, clean.length) withTemplate:@""];
+    clean = [clean stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    return clean.length && ![clean isEqualToString:title] ? clean : nil;
+}
+
+static BOOL hasLyrics(SGLyricsResult *result) {
+    return result.instrumental || result.karaokeLines.count || result.texts.count;
+}
+
 static void learnFrom(SGLyricsQuery *query, SGLyricsResult *result) {
     if (!query.title.length && result.title.length) query.title = result.title;
     if (!query.artist.length && result.artist.length) query.artist = result.artist;
@@ -449,7 +475,7 @@ static void step(SGLyricsWalk *walk) {
         step(walk);
         return;
     }
-    provider.ask(query, ^(SGLyricsResult *fresh) {
+    void (^answered)(SGLyricsResult *) = ^(SGLyricsResult *fresh) {
         learnFrom(query, fresh);
         noteCredit(fresh);
         if (fresh.instrumental) {
@@ -472,6 +498,23 @@ static void step(SGLyricsWalk *walk) {
             merged.pageProvider = fresh.provider ?: provider.name;
         }
         step(walk);
+    };
+    provider.ask(query, ^(SGLyricsResult *fresh) {
+        // A source searching by name that found nothing under Spotify's film-song title asks once more under the
+        // song's own (SGLyricsCleanTitle).
+        NSString *clean = provider.needsName && !hasLyrics(fresh) ? SGLyricsCleanTitle(query.title) : nil;
+        if (!clean) {
+            answered(fresh);
+            return;
+        }
+        SGLyricsQuery *again = [SGLyricsQuery new];
+        again.trackID = query.trackID;
+        again.title = clean;
+        again.artist = query.artist;
+        again.album = query.album;
+        again.seconds = query.seconds;
+        SGLog(@"lyrics: %@ found nothing for \"%@\", asking again as \"%@\"", provider.key, query.title, clean);
+        provider.ask(again, answered);
     });
 }
 

@@ -185,13 +185,15 @@ static NSString *lyricsLine(NSString *trackID, NSString **next, NSString **trans
     if (position >= 0) position -= SGKaraokeDelayMs();
     // With two voices at once, the one that came in first, and the one singing over it as the next.
     NSInteger index = SGKaraokeLeadLine(lines, position);
-    *next = index + 1 < (NSInteger)lines.count ? SGKaraokeLineText(lines[index + 1]) : @"";
+    *next = index + 1 < (NSInteger)lines.count ? SGLyricsShownLine(SGKaraokeLineText(lines[index + 1])) : @"";
     if (index < 0) return @"♪";
     SGKaraokeLine *current = lines[index];
     BOOL nextFarOff = index + 1 == (NSInteger)lines.count || lines[index + 1].start - position > kBreakMs;
     if (position > current.end + kBreakMs && nextFarOff) return @"♪";
-    *translation = current.translation;
-    return SGKaraokeLineText(current);
+    // The romanized line takes the translation's place under it where the song has no translation.
+    NSString *text = SGKaraokeLineText(current);
+    *translation = current.translation ?: SGLyricsLineUnder(text);
+    return SGLyricsShownLine(text);
 }
 
 // The cover for the card, read once a track from Spotify's now playing artwork: its color, darkened so

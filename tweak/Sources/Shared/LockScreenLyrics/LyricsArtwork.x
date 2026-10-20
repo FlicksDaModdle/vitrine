@@ -200,7 +200,7 @@ static void clear(void) {
 }
 
 static NSString *textAt(NSArray<SGKaraokeLine *> *lines, NSInteger index) {
-    return index >= 0 && index < (NSInteger)lines.count ? SGKaraokeLineText(lines[index]) : nil;
+    return index >= 0 && index < (NSInteger)lines.count ? SGLyricsShownLine(SGKaraokeLineText(lines[index])) : nil;
 }
 
 void SGLyricsArtworkSetMotion(NSString *uri, NSURL *file) {

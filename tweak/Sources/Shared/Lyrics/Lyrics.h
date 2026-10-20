@@ -35,6 +35,11 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese);
 // TamilReading.m: Tamil in the spelling its listeners use ("kaadhal", "vandhaan"), the rest of the text
 // as it was; nil when there is no Tamil in it. SGLyricsRomanised reads Tamil through it.
 NSString *SGTamilReading(NSString *text);
+// A line as the places with room for one line show it (the lock screen, its lyric artwork, the Live Activity), by
+// Romanized lyrics: the Latin letters with Show romanized on Instead of the original, the line otherwise. And what
+// goes under it where there is room for a second line: the Latin letters with Under the original, else nil.
+NSString *SGLyricsShownLine(NSString *text);
+NSString *SGLyricsLineUnder(NSString *text);
 // IndicReading.m: the same for Hindi, Marathi, Bengali, Punjabi, Gujarati, Odia, Telugu, Kannada and Malayalam.
 NSString *SGIndicReading(NSString *text);
 // Shared/LyricsSources/PublishedRomanisation.m: the spelling a song's own romanized lyrics give a line, which

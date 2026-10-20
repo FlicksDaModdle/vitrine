@@ -27,7 +27,7 @@ static dispatch_source_t sg_timer;
 static NSString *textOf(NSArray<SGKaraokeWord *> *words) {
     SGKaraokeLine *line = [SGKaraokeLine new];
     line.words = words;
-    return SGKaraokeLineText(line);
+    return SGLyricsShownLine(SGKaraokeLineText(line));
 }
 
 // A line longer than the artist row holds, split into even pieces rather than a full one and a stub.
