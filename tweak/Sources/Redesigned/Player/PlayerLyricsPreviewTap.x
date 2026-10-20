@@ -16,10 +16,9 @@
 #import "Core/SGCore.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/PlayerSettings.h"
-#import "Redesigned/Kit/SGRRestyle.h"
 #import "Player.h"
 
-static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey, kShiftKey, kBoxKey, kRoomKey;
+static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey, kShiftKey;
 static Class sg_previewClass;
 static NSHashTable<UILabel *> *sg_labels;
 static BOOL sg_setting;   // a text of ours going in, which the hooks pass through
@@ -226,6 +225,19 @@ static void setShift(UIView *group, CGFloat shift) {
     if (!CGAffineTransformEqualToTransform(group.transform, move)) group.transform = move;
 }
 
+static const CGFloat kSeenMargin = 16;
+
+// The lowest point in the preview's coordinates that the views clipping it let show, as it stands now.
+static CGFloat visibleBottom(UIView *view, UIView *group) {
+    CGFloat bottom = CGFLOAT_MAX;
+    for (UIView *v = view.superview; v && v.window; v = v.superview) {
+        if (!v.clipsToBounds && !v.layer.mask) continue;
+        bottom = MIN(bottom, CGRectGetMaxY([view convertRect:v.bounds fromView:v]));
+        if ([v isKindOfClass:UIWindow.class]) break;
+    }
+    return bottom == CGFLOAT_MAX ? view.bounds.size.height + 200 : bottom;
+}
+
 // The line's frame in the preview, and how much lower than its rest the sung line sits in it.
 static CGRect placeRoom(UIView *view, CGFloat *lift) {
     CGRect bounds = view.bounds;
@@ -240,92 +252,27 @@ static CGRect placeRoom(UIView *view, CGFloat *lift) {
         bounds.size.height += SGRPreviewLineReach();
         return bounds;
     }
-    CGFloat surplus = rowTop - SGRPreviewLineRest() - kUnder;
-    CGFloat newShift = surplus > 0 ? round(MIN(surplus * 0.6, kMostShift)) : 0;
+    // What the views around the preview let show, unmoved: the line, carried down with the cover, stops short of it,
+    // or it is cut in half there.
+    CGFloat seen = visibleBottom(view, group) + shift;
+    CGFloat rest = SGRPreviewLineRest();
+    CGFloat room = MAX(0, seen - rest - kSeenMargin);
+    CGFloat surplus = rowTop - rest - kUnder;
+    CGFloat newShift = surplus > 0 ? round(MIN(MIN(surplus * 0.6, kMostShift), room)) : 0;
     // While the lines are up the cover stays where it is: the thumbnail is measured from it.
     if (SGRPlayerLyricsOpen()) newShift = shift;
     else setShift(group, newShift);
-    *lift = surplus > newShift ? round((surplus - newShift) * 0.4) : 0;
-    bounds.size.height = MAX(bounds.size.height, rowTop - newShift - 4 - CGRectGetMinY(bounds));
+    *lift = surplus > newShift ? round(MIN((surplus - newShift) * 0.4, MAX(0, room - newShift))) : 0;
+    CGFloat bottom = MIN(rowTop, seen) - newShift - 4;
+    bounds.size.height = MAX(bounds.size.height, bottom - CGRectGetMinY(bounds));
     static BOOL logged;
     if (!logged) {
         logged = YES;
         SGLog(@"redesign player: the title row %.0f pt under the preview's top, the cover moved down %.0f (%@), the line %.0f lower, %.0f pt tall",
               rowTop, newShift, group ? NSStringFromClass(group.class) : @"no group", *lift, bounds.size.height);
+        SGLog(@"redesign player: the preview's surroundings show it down to %.0f pt", seen);
     }
     return bounds;
-}
-
-#pragma mark - the line's own box
-
-// The preview stands inside the covers' list, which clips at its bounds a little under the band: the line reaching
-// down to the title, and the cover moved down, put the sung line past it and it was cut in half. So the line stands
-// in a box of its own over the list, as wide as the list (which keeps the neighbouring covers' lines out of sight)
-// and as tall as down to the title row, placed from its preview every time the list or the preview lays out.
-static UIScrollView *listOf(UIView *view) {
-    for (UIView *v = view.superview; v; v = v.superview) if ([v isKindOfClass:UIScrollView.class]) return (UIScrollView *)v;
-    return nil;
-}
-
-static void placeLines(UIView *box) {
-    UIView *(^listOfBox)(void) = objc_getAssociatedObject(box, &kBoxKey);
-    UIView *list = box.superview && listOfBox ? listOfBox() : nil;
-    UIView *host = box.superview;
-    if (!list || !host || ![list isDescendantOfView:host]) return;
-    CGRect frame = [host convertRect:list.bounds fromView:list];
-    CGRect row = SGRPlayerTitleRowFrameIn(host);
-    if (!CGRectIsNull(row)) frame.size.height = MAX(frame.size.height, CGRectGetMinY(row) - CGRectGetMinY(frame));
-    if (!CGRectEqualToRect(box.frame, frame)) box.frame = frame;
-    // Over everything of the player's, the gradients and the title's unit included, under the lyrics' overlay.
-    UIView *overlay = SGRPlayerLyricsOverlayView();
-    if (overlay.superview == host) {
-        if ([host.subviews indexOfObject:box] != [host.subviews indexOfObject:overlay] - 1) [host insertSubview:box belowSubview:overlay];
-    } else if (host.subviews.lastObject != box) [host bringSubviewToFront:box];
-    for (UIView *line in box.subviews.copy) {
-        UIView *band = SGRPreviewLineBand(line);
-        NSValue *room = objc_getAssociatedObject(line, &kRoomKey);
-        if (!band) {
-            [line removeFromSuperview];
-            continue;
-        }
-        // Seen where the preview is: nothing on the way up to the list's parent hidden or faded out.
-        BOOL shown = band.window && room;
-        for (UIView *v = band; shown && v && v != box.superview; v = v.superview) shown = !v.hidden && v.alpha > 0.01;
-        if (line.hidden == shown) line.hidden = !shown;
-        if (!shown) continue;
-        CGRect at = [box convertRect:room.CGRectValue fromView:band];
-        if (!CGRectEqualToRect(line.frame, at)) line.frame = at;
-    }
-}
-
-// The box goes in the player's own list, the one its units scroll in (the cover's unit clips too, a little under the
-// band, and cut the line in half again from the covers' list's parent), above its cells; or by the covers' list.
-static UIView *boxFor(UIView *preview) {
-    UIScrollView *list = listOf(preview);
-    if (!list.superview) return nil;
-    UIScrollView *outer = listOf(list);
-    UIView *host = SGRPlayerHostView();
-    if (!host || ![list isDescendantOfView:host]) return nil;
-    UIView *box = objc_getAssociatedObject(list, &kBoxKey);
-    if (!box) {
-        box = [UIView new];
-        box.userInteractionEnabled = NO;
-        box.clipsToBounds = YES;
-        box.backgroundColor = UIColor.clearColor;
-        objc_setAssociatedObject(list, &kBoxKey, box, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        __weak UIView *weakList = list;
-        objc_setAssociatedObject(box, &kBoxKey, ^UIView *{ return weakList; }, OBJC_ASSOCIATION_COPY_NONATOMIC);
-        __weak UIView *weakBox = box;
-        SGRObserveLayout(list, ^(UIView *v) { if (weakBox) placeLines(weakBox); });
-        // The player's own list scrolls the cover away with its cards: the box follows it there.
-        if (outer && [outer isDescendantOfView:host]) SGRObserveLayout(outer, ^(UIView *v) { if (weakBox) placeLines(weakBox); });
-        SGLog(@"redesign player: the lyric line stands over the covers' list (%@ %@)", NSStringFromClass(list.class), NSStringFromCGRect(list.frame));
-    }
-    if (box.superview != host) {
-        [host addSubview:box];
-        placeLines(box);
-    }
-    return box;
 }
 
 static void previewLaidOut(UIView *view) {
@@ -357,16 +304,8 @@ static void previewLaidOut(UIView *view) {
         CGFloat lift = 0;
         CGRect bounds = placeRoom(view, &lift);
         SGRPreviewLineSetLift(line, lift);
-        UIView *box = boxFor(view);
-        if (box) {
-            SGRPreviewLineSetBand(line, view);
-            objc_setAssociatedObject(line, &kRoomKey, [NSValue valueWithCGRect:bounds], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            if (line.superview != box) [box addSubview:line];
-            placeLines(box);
-        } else {
-            if (!CGRectEqualToRect(line.frame, bounds)) line.frame = bounds;
-            if (line.superview != view) [view addSubview:line];
-        }
+        if (!CGRectEqualToRect(line.frame, bounds)) line.frame = bounds;
+        if (line.superview != view) [view addSubview:line];
         // Unclipped up to the cell the cover is in, not past it: a scroll view clipping is the player's own.
         int up = 0;
         for (UIView *v = view; v && up < 5 && ![v isKindOfClass:UIScrollView.class]; v = v.superview, up++) {
