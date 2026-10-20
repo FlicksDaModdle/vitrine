@@ -140,6 +140,11 @@ with open(sys.argv[2], 'rb') as f: app = plistlib.load(f)
 services = list(app.get('NSBonjourServices', []))
 services += [s for s in overlay.get('NSBonjourServices', []) if s not in services]
 overlay['NSBonjourServices'] = services
+# vitrine: (Shared/Navigation/VitrineLinks.x) goes in after Spotify's own link types, which stay.
+if 'CFBundleURLTypes' in overlay:
+    types = list(app.get('CFBundleURLTypes', []))
+    types += [t for t in overlay['CFBundleURLTypes'] if t not in types]
+    overlay['CFBundleURLTypes'] = types
 if app.get('NSLocalNetworkUsageDescription'): overlay.pop('NSLocalNetworkUsageDescription', None)
 with open(sys.argv[3], 'wb') as f: plistlib.dump(overlay, f)
 PY

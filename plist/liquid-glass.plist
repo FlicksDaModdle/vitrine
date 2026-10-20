@@ -6,6 +6,17 @@
 	<false/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>vitrine</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vitrine</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
 	<key>MusicHapticsSupported</key>
