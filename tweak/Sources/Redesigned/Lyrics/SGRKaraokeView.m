@@ -354,6 +354,8 @@ static double heldStrength(double held) {
 // it off. A backing row has none.
 @property (nonatomic, readonly) UIFont *romanised;
 @property (nonatomic) BOOL japanese;   // the song has kana, so its kanji are read the Japanese way
+// The romanized words take the lyrics' place (SGKeyLyricsRomanisedMode), timed as the words they spell.
+@property (nonatomic) BOOL romanisedOnly;
 - (instancetype)initWithSize:(CGFloat)size order:(NSArray<NSNumber *> *)order pronunciation:(BOOL)pronunciation translation:(BOOL)translation
                    romanised:(BOOL)romanised;
 @end
@@ -395,6 +397,8 @@ static const CGFloat kSecondShare = 0.67, kThirdShare = 0.54;
     NSMutableArray<NSNumber *> *order = [_order mutableCopy];
     [order removeObject:@(SGRLyricsTextTranslation)];
     backing->_order = order;
+    backing.romanisedOnly = _romanisedOnly;
+    backing.japanese = _japanese;
     return backing;
 }
 
@@ -594,6 +598,31 @@ static CGRect blockFrame(NSString *text, UIFont *font, CGFloat width, CGFloat to
     return CGRectMake(0, top, width, ceil(bounds.size.height));
 }
 
+// The words a line shows as its lyrics: its own, or with Romanized in place of the original, the source's own
+// timed pronunciation where it has one, else each word in Latin letters at the original word's time. A word
+// already in Latin letters is kept as it is.
+static NSArray<SGKaraokeWord *> *shownWords(SGKaraokeLine *line, SGRKaraokeStyle *style) {
+    if (!style.romanisedOnly) return line.words;
+    if (line.pronunciation.words.count) return line.pronunciation.words;
+    NSMutableArray<SGKaraokeWord *> *words = [NSMutableArray arrayWithCapacity:line.words.count];
+    BOOL changed = NO;
+    for (SGKaraokeWord *word in line.words) {
+        NSString *latin = SGLyricsRomanised(word.text, style.japanese);
+        if (!latin.length) {
+            [words addObject:word];
+            continue;
+        }
+        SGKaraokeWord *copy = [SGKaraokeWord new];
+        copy.text = latin;
+        copy.start = word.start;
+        copy.end = word.end;
+        copy.joined = NO;   // syllables read apart once they are in Latin letters
+        [words addObject:copy];
+        changed = YES;
+    }
+    return changed ? words : line.words;
+}
+
 // The texts a line has, in the style's order, the lyrics and their pronunciation set as a pair where
 // the order has them side by side, the line in Latin letters right under the lyrics where it is not
 // already spelled out by the pronunciation, and the backing row after that. `right` is the side a backing
@@ -602,10 +631,11 @@ static SGRKaraokeLayout *layOut(SGKaraokeLine *line, CGFloat width, SGRKaraokeSt
     SGRKaraokeLayout *layout = [SGRKaraokeLayout new];
     layout.right = right >= 0 ? right : alignsRight(line);
     layout.translation = layout.romanised = CGRectNull;
-    NSArray<SGKaraokeWord *> *spoken = style.pronunciation ? line.pronunciation.words : nil;
+    NSArray<SGKaraokeWord *> *sung = shownWords(line, style);
+    NSArray<SGKaraokeWord *> *spoken = style.pronunciation && !style.romanisedOnly ? line.pronunciation.words : nil;
     NSString *translation = style.translation ? line.translation : nil;
     // A source's own pronunciation, hidden, still reads better than the transform's.
-    if (style.romanised && !spoken.count) {
+    if (style.romanised && !style.romanisedOnly && !spoken.count) {
         layout.romanisedText = line.pronunciation ? SGKaraokeLineText(line.pronunciation)
                                                   : SGLyricsRomanised(SGKaraokeLineText(line), style.japanese);
     }
@@ -631,8 +661,8 @@ static SGRKaraokeLayout *layOut(SGKaraokeLine *line, CGFloat width, SGRKaraokeSt
         if (paired) {
             NSArray<NSValue *> *pairedFrames;
             NSArray<NSNumber *> *pairedOffsets;
-            y = layPair(lyrics ? line.words : spoken, lyrics ? style.lyrics : style.pronunciation,
-                        lyrics ? spoken : line.words, lyrics ? style.pronunciation : style.lyrics,
+            y = layPair(lyrics ? sung : spoken, lyrics ? style.lyrics : style.pronunciation,
+                        lyrics ? spoken : sung, lyrics ? style.pronunciation : style.lyrics,
                         width, layout.right, y, &frames, &offsets, &pairedFrames, &pairedOffsets);
             layout.lyricFrames = lyrics ? frames : pairedFrames;
             layout.lyricOffsets = lyrics ? offsets : pairedOffsets;
@@ -641,7 +671,7 @@ static SGRKaraokeLayout *layOut(SGKaraokeLine *line, CGFloat width, SGRKaraokeSt
             p++;
             lyrics = YES;
         } else {
-            y = layRun(lyrics ? line.words : spoken, lyrics ? style.lyrics : style.pronunciation, width, layout.right, y, &frames, &offsets);
+            y = layRun(lyrics ? sung : spoken, lyrics ? style.lyrics : style.pronunciation, width, layout.right, y, &frames, &offsets);
             if (lyrics) {
                 layout.lyricFrames = frames;
                 layout.lyricOffsets = offsets;
@@ -849,9 +879,9 @@ static double wholeFrom(SGKaraokeLine *run, BOOL sweepsEstimates) {
     SGRKaraokeLayout *layout = layOut(line, width, style, backing ? under.right : -1);
     _right = layout.right;
     NSMutableArray<SGRKaraokeSweep *> *sweeps = [NSMutableArray array];
-    SGRKaraokeSweep *sung = [self sweepOf:line.words font:style.lyrics frames:layout.lyricFrames offsets:layout.lyricOffsets
+    SGRKaraokeSweep *sung = [self sweepOf:shownWords(line, style) font:style.lyrics frames:layout.lyricFrames offsets:layout.lyricOffsets
                                 wholeFrom:wholeFrom(line, sweepsEstimates)];
-    SGRKaraokeSweep *spoken = [self sweepOf:line.pronunciation.words font:style.pronunciation frames:layout.spokenFrames
+    SGRKaraokeSweep *spoken = [self sweepOf:style.romanisedOnly ? nil : line.pronunciation.words font:style.pronunciation frames:layout.spokenFrames
                                     offsets:layout.spokenOffsets wholeFrom:wholeFrom(line.pronunciation, sweepsEstimates)];
     if (sung) [sweeps addObject:sung];
     if (spoken) [sweeps addObject:spoken];
@@ -1861,6 +1891,7 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
                                                        translation:_hasTranslation && SGFlag(SGRKeyLyricsTranslation, NO)
                                                          romanised:romanised];
     style.japanese = romanised && SGLyricsLooksJapanese(_lines);
+    style.romanisedOnly = romanised && SGInt(SGKeyLyricsRomanisedMode, 0) == 1;
     return style;
 }
 

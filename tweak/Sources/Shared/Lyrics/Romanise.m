@@ -59,15 +59,18 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese) {
     NSString *romanised = [kept objectForKey:key];
     if (romanised) return romanised.length ? romanised : nil;
     BOOL kana = japanese || hasKana(text);
-    // Tamil reads the way its listeners spell it (TamilReading.m), and only what else is left goes on.
+    // Tamil and the other Indian scripts read the way their listeners spell them (TamilReading.m,
+    // IndicReading.m), and only what else is left goes on.
     NSString *tamil = kana ? nil : SGTamilReading(text);
-    if (tamil && !has(tamil, @"[\\p{L}&&[^\\p{Latin}]]")) {
-        romanised = [tamil stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    NSString *indic = kana ? nil : SGIndicReading(tamil ?: text);
+    NSString *native = indic ?: tamil;
+    if (native && !has(native, @"[\\p{L}&&[^\\p{Latin}]]")) {
+        romanised = [native stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
         if ([romanised caseInsensitiveCompare:text] == NSOrderedSame) romanised = @"";
         [kept setObject:romanised forKey:key];
         return romanised.length ? romanised : nil;
     }
-    NSString *source = kana ? readJapanese(text) : (tamil ?: text);
+    NSString *source = kana ? readJapanese(text) : (native ?: text);
     // Han left over is Chinese: its pinyin keeps the tones, and only its punctuation is made ASCII.
     NSString *transform = !kana && has(text, @"\\p{Han}") ? @"Any-Latin; [[:P:][:Zs:]] Latin-ASCII" : @"Any-Latin; Latin-ASCII";
     romanised = [[source stringByApplyingTransform:transform reverse:NO]

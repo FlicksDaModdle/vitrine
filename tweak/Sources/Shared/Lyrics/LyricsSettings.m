@@ -56,6 +56,17 @@ SGModRow *SGLyricsRomanisedRow(void) {
     return row;
 }
 
+SGModRow *SGLyricsRomanisedModeRow(void) {
+    NSArray<NSString *> *choices = @[@"Under the original", @"Instead of the original"];
+    SGModRow *row = SGMenuRow(@"Show romanized", choices, ^NSString *{
+        return choices[SGInt(SGKeyLyricsRomanisedMode, 0) == 1 ? 1 : 0];
+    }, ^(NSInteger index) {
+        SGSetInt(SGKeyLyricsRomanisedMode, index);
+        [NSNotificationCenter.defaultCenter postNotificationName:SGLyricsRomanisedDidChangeNotification object:nil];
+    });
+    return row;
+}
+
 // Only the redesign's lyrics view sweeps words.
 SGModRow *SGLyricsWordTimingRow(void) {
     return SGOptionRow(@"Simulate word timing", nil, SGKeyLyricsSimulateWords);

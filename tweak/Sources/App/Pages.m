@@ -116,7 +116,7 @@ static UIViewController *lyricsPage(void) {
         @"Every line shows this much later than the song, for Bluetooth headphones that play a little behind the lyrics. Applies at once.");
     if (redesigned) {
         [sections addObjectsFromArray:@[
-            SGSection(@"Display", @[SGRLyricsTextSizesRow(), SGLyricsWordTimingRow(), SGLyricsRomanisedRow(),
+            SGSection(@"Display", @[SGRLyricsTextSizesRow(), SGLyricsWordTimingRow(), SGLyricsRomanisedRow(), SGLyricsRomanisedModeRow(),
                 SGSwitchRow(@"Hide the controls", @"A few seconds after the last touch, the lyrics take the whole player", SGRKeyLyricsAutoHide),
                 SGSwitchRow(@"Landscape lyrics", @"Turn the phone with the lyrics open", SGRKeyLyricsLandscape),
                 SGSwitchRow(@"Tap preview for full screen", @"The line under the cover opens the lyrics on their own screen", SGRKeyLyricsPreviewOpensScreen)]),

@@ -24,6 +24,10 @@ SGModRow *SGLyricsDelayRow(void);
 // Only the redesign's lyrics view draws it, and it applies at once: the switch posts the notification.
 #define SGKeyLyricsRomanised @"spotifyglass.lyricsRomanised"
 extern NSNotificationName const SGLyricsRomanisedDidChangeNotification;
+// Where the romanized line goes: 0 under the original (unset), 1 in its place, each word in Latin letters at
+// the original word's time. Applies at once, posting the notification above.
+#define SGKeyLyricsRomanisedMode @"spotifyglass.lyricsRomanisedMode"
+SGModRow *SGLyricsRomanisedModeRow(void);
 // Romanise.m: the text in Latin letters, offline; nil where it has no letter of another script, or
 // reads the same. `japanese` reads kanji the Japanese way, for a song SGLyricsLooksJapanese says is
 // (a line of kanji alone would read as Chinese). Safe off the main thread, and kept per text.
@@ -31,6 +35,8 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese);
 // TamilReading.m: Tamil in the spelling its listeners use ("kaadhal", "vandhaan"), the rest of the text
 // as it was; nil when there is no Tamil in it. SGLyricsRomanised reads Tamil through it.
 NSString *SGTamilReading(NSString *text);
+// IndicReading.m: the same for Hindi, Marathi, Bengali, Punjabi, Gujarati, Odia, Telugu, Kannada and Malayalam.
+NSString *SGIndicReading(NSString *text);
 // LyricCard.m: a few of the playing track's lines picked from a list and shared as an image over its cover,
 // with their pronunciation under them if wanted. Available once the track's lines are in.
 @class UIViewController;
