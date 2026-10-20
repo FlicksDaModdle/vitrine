@@ -50,6 +50,8 @@ jobs:
           # Spotify's remote-config flags, with their types and defaults (scripts/extract-flags.py).
           python3 scripts/extract-flags.py spotify.ipa >/dev/null 2>&1 || true
           grep -iE "$PATTERN" tweak/Sources/Shared/Flags/SGFlagList.m 2>/dev/null | sed "s|^|flags |" >> names.txt || true
+          # The app's icons, alternate ones included, from its Info.plist.
+          plutil -convert json -o - "$APP/Info.plist" | python3 -c 'import json,sys; d=json.load(sys.stdin); [print("plist", k, json.dumps(d[k])) for k in d if "Icon" in k]' >> names.txt || true
           sort -u names.txt -o names.txt
           echo "$(wc -l < names.txt) names"
           # One annotation per 60 KB, at most 10 (GitHub keeps 10 notices a step).
