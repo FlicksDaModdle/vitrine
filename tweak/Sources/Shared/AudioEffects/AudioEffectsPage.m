@@ -2,6 +2,7 @@
 // into their controls as their switches go on, and its status line and the effects' errors come and go
 // while it is open, none of which a page of fixed rows does. It keeps Settings/'s look all the same: the
 // cards, the 13pt titles over 11pt subtitles, the tiles, the value and the chevron, the checkmark lists.
+#import "Settings/SGGlassSections.h"
 #import <CoreText/SFNTLayoutTypes.h>
 #import "Core/SGCore.h"
 #import "Settings/SGPage.h"
@@ -582,7 +583,7 @@ static UIFont *tabular(UIFont *font) {
     switch (row.kind) {
         case SGDSPRowSlider: {
             SGDSPSliderCell *cell = [table dequeueReusableCellWithIdentifier:@"slider"] ?: [[SGDSPSliderCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"slider"];
-            cell.backgroundColor = SGCardBackground();
+            cell.backgroundColor = SGCellBackground();
             [cell showRow:row];
             return cell;
         }
@@ -594,7 +595,7 @@ static UIFont *tabular(UIFont *font) {
                 cell.curve = [[SGDSPCurveView alloc] initWithKey:row.key];
                 [cell.contentView addSubview:cell.curve];
             }
-            cell.backgroundColor = SGCardBackground();
+            cell.backgroundColor = SGCellBackground();
             [cell.curve reload];
             return cell;
         }

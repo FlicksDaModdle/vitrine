@@ -1,5 +1,6 @@
 #import <CoreText/SFNTLayoutTypes.h>
 #import "SGModPage.h"
+#import "SGGlassSections.h"
 #import "SGPageStyle.h"
 #import "SGGlowSwitch.h"
 #import "Core/SGCore.h"
@@ -871,7 +872,7 @@ static void showWaiting(UITableViewCell *cell, BOOL waiting, NSString *switchTit
     SGModRow *row = [self rowAt:path];
     if (row.number) {
         SGModSliderCell *cell = [table dequeueReusableCellWithIdentifier:@"slider"] ?: [[SGModSliderCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"slider"];
-        cell.backgroundColor = SGCardBackground();
+        cell.backgroundColor = SGCellBackground();
         [cell showRow:row];
         showWaiting(cell, [self isWaiting:row], [self switchFor:row].title);
         return cell;

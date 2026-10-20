@@ -1,4 +1,5 @@
 #import "SGPageStyle.h"
+#import "SGGlassSections.h"
 #import "Core/SGCore.h"
 
 static UIFont *sg_spotifyFont;
@@ -212,7 +213,7 @@ void SGFillCell(UITableViewCell *cell, NSString *title, NSString *subtitle, UICo
         content.imageToTextPadding = 13;
     }
     cell.contentConfiguration = content;
-    cell.backgroundColor = SGCardBackground();
+    cell.backgroundColor = SGCellBackground();
     cell.accessoryView = nil;
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
 }

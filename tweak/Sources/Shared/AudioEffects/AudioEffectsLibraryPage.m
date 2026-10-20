@@ -1,6 +1,7 @@
 // The pages a file effect's row and the Graphic EQ's row push: a library of files with the chosen one
 // ticked, and the GraphicEQ text to paste or edit. Each shows the effect's error, if its last change did
 // not take, in a red card at the top, looked at again once a second while the page is open.
+#import "Settings/SGGlassSections.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "Core/SGCore.h"
 #import "Settings/SGPage.h"
@@ -355,7 +356,7 @@ typedef NS_ENUM(NSInteger, SGGraphicEqRow) {
     if (path.section == 0) return [self errorCellIn:table];
     if (path.section == 1) {
         UITableViewCell *cell = SGDequeueCell(table, @"text");
-        cell.backgroundColor = SGCardBackground();
+        cell.backgroundColor = SGCellBackground();
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
         _text.frame = cell.contentView.bounds;
         _text.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
