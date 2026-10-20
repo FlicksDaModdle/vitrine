@@ -56,7 +56,7 @@ jobs:
 
       # A prebuilt Safari web extension that sends open.spotify.com pages to the app. Pinned to a commit,
       # since it is a binary from another repo. Its content script opens spotify://eevee/... links, which
-      # only EeveeSpotify answers, so it is rewritten to vitrine://<type>/<id>, the link type only this build
+      # only EeveeSpotify answers, so it is rewritten to vitrine://<host>/<path>?<query>, the link type only this build
       # claims (Shared/Navigation/VitrineLinks.x). spotify: would go to the App Store Spotify if installed.
       - name: Fetch the Open in Spotify Safari extension
         if: inputs.safari_extension
@@ -69,11 +69,18 @@ jobs:
           path = sys.argv[1]
           src = open(path).read()
           old = 'window.location.href = "spotify://eevee/" + window.location.host + window.location.pathname'
-          new = ('const p = window.location.pathname.split("/").filter(s => s && !s.startsWith("intl-")); '
-                 'if (p.length >= 2) window.location.href = "vitrine://" + p.join("/");')
+          new = ('window.location.href = "vitrine://" + window.location.host + window.location.pathname '
+                 '+ window.location.search')
           if old not in src:
               sys.exit("content.js changed upstream; update this step")
           open(path, "w").write(src.replace(old, new))
+          # spotify.link short links too, which most share sheets hand out now.
+          manifest = path.replace("content.js", "manifest.json")
+          m = open(manifest).read()
+          m_old = '"*://spotify.app.link/*" ]'
+          if m_old not in m:
+              sys.exit("manifest.json changed upstream; update this step")
+          open(manifest, "w").write(m.replace(m_old, '"*://spotify.app.link/*", "*://spotify.link/*" ]'))
           PY
           echo "EXTRA_FILES=$PWD/$APPEX" >> "$GITHUB_ENV"
 

@@ -1,19 +1,35 @@
 // vitrine: links, Vitrine's own link type. A re-signed Spotify shares spotify: with the App Store
 // Spotify when both are installed, and iOS hands a shared scheme to the one it registered first, so a
-// link that must reach this app is written vitrine:track:<id> (the Safari extension's, from the IPA build
-// workflow). scripts/pipeline.sh adds the scheme to Info.plist from plist/liquid-glass.plist; here it is
-// turned back into spotify:track:<id> before Spotify reads it, so Spotify's own routing opens it, cold
-// launch included.
+// link that must reach this app is written vitrine:... instead. scripts/pipeline.sh adds the scheme to
+// Info.plist from plist/liquid-glass.plist; here it is turned back into a link Spotify opens itself before
+// Spotify reads it, cold launch included.
 //
-// Accepted forms: vitrine:track:<id>, vitrine://track/<id>, vitrine://open.spotify.com/track/<id>.
+// - vitrine://<spotify host>/<path>?<query> (the Safari extension's, from the IPA build workflow) becomes
+//   https://<spotify host>/<path>?<query>, the universal link Spotify would have been handed, so Spotify
+//   resolves its own short links (spotify.app.link, spotify.link: Jams, shares) the way EeveeSpotify's
+//   spotify://eevee/<host>/<path> does (OpenSpotify.x.swift).
+// - vitrine:track:<id> and vitrine://track/<id> become spotify:track:<id>.
 #import "Core/SGCore.h"
 #import <objc/runtime.h>
 
+static BOOL sg_isSpotifyHost(NSString *host) {
+    host = host.lowercaseString;
+    for (NSString *h in @[@"open.spotify.com", @"spotify.app.link", @"spotify.link", @"spotify.com"])
+        if ([host isEqualToString:h] || [host hasSuffix:[@"." stringByAppendingString:h]]) return YES;
+    return NO;
+}
+
 static NSURL *sg_vitrineToSpotify(NSURL *url) {
     if (![url.scheme.lowercaseString isEqualToString:@"vitrine"]) return url;
+    if (sg_isSpotifyHost(url.host)) {
+        NSURLComponents *c = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+        c.scheme = @"https";
+        NSURL *web = c.URL;
+        SGLog(@"links: %@ -> %@", url, web);
+        if (web) return web;
+    }
     NSString *rest = [url.absoluteString substringFromIndex:@"vitrine:".length];
     while ([rest hasPrefix:@"/"]) rest = [rest substringFromIndex:1];
-    if ([rest hasPrefix:@"open.spotify.com/"]) rest = [rest substringFromIndex:@"open.spotify.com/".length];
     // The web's path form (track/<id>?si=...) becomes the URI form (track:<id>), and its query goes.
     if ([rest rangeOfString:@":"].location == NSNotFound) {
         rest = [rest componentsSeparatedByString:@"?"].firstObject;
