@@ -1374,7 +1374,7 @@ typedef struct {
     _credit.hidden = YES;
     _credit.numberOfLines = 2;
     _crediting = SGFlag(SGKeyLyricsCredit, NO);
-    _sweepsEstimates = SGFlag(SGKeyLyricsSimulateWords, NO);
+    _sweepsEstimates = SGEnabled(SGKeyLyricsSimulateWords);
     [_scroll addSubview:_credit];
     __weak SGRKaraokeView *weakSelf = self;
     _credit.activate = ^BOOL {

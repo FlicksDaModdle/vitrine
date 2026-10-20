@@ -54,8 +54,8 @@ void SGLyricCardPresent(UIViewController *from);
 BOOL SGLyricsLooksJapanese(NSArray<SGKaraokeLine *> *lines);
 
 // Sweeps a line timed only by the line word by word, on the estimate of when each word is sung, as if
-// the source had timed them. Off, such a line lights up whole as it starts. Off by default: the
-// estimate is a guess dressed up as timing.
+// the source had timed them. Off, such a line lights up whole as it starts. The
+// estimate is a guess dressed up as timing. On until switched off: a sweep reads better than a line lit whole.
 #define SGKeyLyricsSimulateWords @"spotifyglass.lyricsSimulateWords"
 
 // How finely a line was timed by where it came from. The words of a line timed by the line are still

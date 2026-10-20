@@ -65,10 +65,46 @@ static const NSUInteger kReports = 30;
 
 @end
 
+// The classes a play of our own would be built from, every method with its types, in lines short enough for the
+// log to keep whole.
+static void logClasses(void) {
+    for (NSString *name in @[@"SPTPlayerContext", @"SPTPlayerContextPage", @"SPTPlayerTrack", @"SPTPlayOptions",
+                             @"SPTPlayerOptionOverrides", @"SPTPlayOrigin", @"SPTLoggingParams"]) {
+        Class cls = NSClassFromString(name);
+        if (!cls) { SGLog(@"shuffle probe: no class %@", name); continue; }
+        NSMutableArray<NSString *> *entries = [NSMutableArray array];
+        for (int meta = 1; meta >= 0; meta--) {
+            Class target = meta ? object_getClass(cls) : cls;
+            unsigned int count = 0;
+            Method *methods = class_copyMethodList(target, &count);
+            for (unsigned int i = 0; i < count; i++) {
+                [entries addObject:[NSString stringWithFormat:@"%@%@ %s", meta ? @"+" : @"-",
+                                    NSStringFromSelector(method_getName(methods[i])), method_getTypeEncoding(methods[i]) ?: ""]];
+            }
+            free(methods);
+        }
+        unsigned int count = 0;
+        objc_property_t *properties = class_copyPropertyList(cls, &count);
+        for (unsigned int i = 0; i < count; i++) [entries addObject:[NSString stringWithFormat:@"@property %s %s", property_getName(properties[i]), property_getAttributes(properties[i])]];
+        free(properties);
+        NSMutableString *line = [NSMutableString string];
+        NSUInteger part = 0;
+        for (NSString *entry in entries) {
+            if (line.length + entry.length > 700) {
+                SGLog(@"shuffle probe: %@ (%lu) %@", name, (unsigned long)++part, line);
+                [line setString:@""];
+            }
+            [line appendFormat:@"%@ | ", entry];
+        }
+        if (line.length) SGLog(@"shuffle probe: %@ (%lu) %@", name, (unsigned long)++part, line);
+    }
+}
+
 __attribute__((constructor)) static void startShuffleProbe(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         static SGShuffleProbe *probe;
         probe = [SGShuffleProbe new];
+        logClasses();
         SGAddPlayerStateObserver(probe);
     });
 }

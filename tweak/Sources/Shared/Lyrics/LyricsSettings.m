@@ -69,7 +69,7 @@ SGModRow *SGLyricsRomanisedModeRow(void) {
 
 // Only the redesign's lyrics view sweeps words.
 SGModRow *SGLyricsWordTimingRow(void) {
-    return SGOptionRow(@"Simulate word timing", nil, SGKeyLyricsSimulateWords);
+    return SGSwitchRow(@"Simulate word timing", @"Lines synced only by the line sweep word by word too", SGKeyLyricsSimulateWords);
 }
 
 // Read wherever lines are timed, so it applies as the thumb moves.
