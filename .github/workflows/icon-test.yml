@@ -1,0 +1,56 @@
+name: Test the icon move
+
+# A development aid: runs the IPA build's Old icon step alone, without building the tweak.
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct link to a decrypted Spotify IPA"
+        required: true
+        type: string
+
+jobs:
+  icon:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - uses: levibostian/action-hide-sensitive-inputs@v1
+      - name: Download IPA
+        run: |
+          mkdir -p ipa
+          curl -fsSL "${{ inputs.ipa_url }}" -o ipa/spotify.ipa
+      # The 9.1.78 icon's files are kept encrypted in the repo, since it is public: the key is a secret of the repo's.
+      - name: Use the other IPA's app icon
+        if: true
+        env:
+          OLD_ICON_KEY: ${{ secrets.OLD_ICON_KEY }}
+        run: |
+          set -o pipefail
+          mkdir -p icon/old/Payload/Old.app icon/new
+          if [ -n "" ]; then
+            rm -rf icon/old && mkdir -p icon/old
+            curl -fsSL "" -o icon/old.ipa
+            unzip -q icon/old.ipa 'Payload/*.app/Assets.car' 'Payload/*.app/AppIcon*' -d icon/old
+          elif [ -n "$OLD_ICON_KEY" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -in assets/old-icon.tar.enc -pass env:OLD_ICON_KEY | tar -x -C icon/old/Payload/Old.app
+          else
+            echo "::warning title=Old icon::The OLD_ICON_KEY secret is not set, so Spotify's own icon stays"
+            exit 0
+          fi
+          (cd icon/new && unzip -q ../../ipa/spotify.ipa)
+          APP="$(ls -d icon/new/Payload/*.app)"
+          OLD="$(ls -d icon/old/Payload/*.app)"
+          clang -fobjc-arc -framework Foundation -framework CoreGraphics -F/System/Library/PrivateFrameworks -framework CoreUI \
+            scripts/icon-transplant.m -o icon/icon-transplant
+          cp "$APP/Assets.car" icon/Assets.car
+          if icon/icon-transplant "$OLD/Assets.car" icon/Assets.car 2>&1 | tee icon/log.txt; then
+            cp icon/Assets.car "$APP/Assets.car"
+            cp "$OLD"/AppIcon*.png "$APP/" 2>/dev/null || true
+            (cd icon/new && rm -f ../../ipa/spotify.ipa && zip -qr -y ../../ipa/spotify.ipa Payload)
+            xcrun --sdk iphoneos assetutil --info "$APP/Assets.car" > icon/info.json 2>/dev/null || true
+            python3 -c 'import json; d=json.load(open("icon/info.json")); print("\n".join(sorted(set(str(e.get("Name")) + " " + str(e.get("AssetType")) for e in d[1:] if str(e.get("Name", "")).startswith("AppIcon")))))' >> icon/log.txt 2>/dev/null || true
+            echo "::notice title=Old icon::$(sed -e 's/%/%25/g' icon/log.txt | awk 'BEGIN{ORS="%0A"} {print}')"
+          else
+            echo "::warning title=Old icon not moved::$(sed -e 's/%/%25/g' icon/log.txt | awk 'BEGIN{ORS="%0A"} {print}')"
+          fi
+

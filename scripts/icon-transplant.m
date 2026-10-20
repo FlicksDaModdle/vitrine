@@ -25,7 +25,7 @@ struct sg_keyfmt { uint32_t tag; uint32_t version; uint32_t count; uint32_t attr
 - (const struct sg_keyfmt *)keyFormat;
 - (NSArray<NSData *> *)allAssetKeys;
 - (NSData *)assetForKey:(NSData *)key;
-- (const struct sg_keytoken *)renditionKeyForName:(const char *)name;
+- (const struct sg_keytoken *)renditionKeyForName:(const char *)name hotSpot:(CGPoint *)hotSpot;
 - (NSArray<NSString *> *)allRenditionNames;
 @end
 
@@ -35,7 +35,16 @@ struct sg_keyfmt { uint32_t tag; uint32_t version; uint32_t count; uint32_t attr
 - (BOOL)removeAssetForKey:(NSData *)key;
 - (BOOL)setRenditionKey:(const struct sg_keytoken *)key hotSpot:(CGPoint)hotSpot forName:(const char *)name;
 - (BOOL)writeToDiskAndCompact:(BOOL)compact;
+- (void)setRenditionCount:(unsigned int)count;
+- (BOOL)useBitmapIndex;
+- (void)updateBitmapInfo;
 @end
+
+// A name's facet, its attributes and their values.
+static const struct sg_keytoken *facetFor(CUICommonAssetStorage *storage, NSString *name) {
+    CGPoint hotSpot = CGPointZero;
+    return [storage renditionKeyForName:name.UTF8String hotSpot:&hotSpot];
+}
 
 static void need(id object, SEL selector) {
     if ([object respondsToSelector:selector]) return;
@@ -98,7 +107,7 @@ int main(int argc, const char *argv[]) {
             fprintf(stderr, "icon-transplant: a catalog did not open\n");
             return 2;
         }
-        for (NSString *sel in @[@"keyFormat", @"allAssetKeys", @"assetForKey:", @"renditionKeyForName:", @"allRenditionNames"]) need(from, NSSelectorFromString(sel));
+        for (NSString *sel in @[@"keyFormat", @"allAssetKeys", @"assetForKey:", @"renditionKeyForName:hotSpot:", @"allRenditionNames"]) need(from, NSSelectorFromString(sel));
         for (NSString *sel in @[@"setAsset:forKey:", @"removeAssetForKey:", @"setRenditionKey:hotSpot:forName:", @"writeToDiskAndCompact:"]) need(into, NSSelectorFromString(sel));
 
         const struct sg_keyfmt *fromFormat = [from keyFormat], *intoFormat = [into keyFormat];
@@ -124,7 +133,7 @@ int main(int argc, const char *argv[]) {
         // Values each facet attribute already takes in INTO, so a new name's facet takes free ones.
         NSMutableDictionary<NSNumber *, NSMutableSet<NSNumber *> *> *taken = [NSMutableDictionary dictionary];
         for (NSString *name in intoNames) {
-            for (NSArray<NSNumber *> *t in tokensOf([into renditionKeyForName:name.UTF8String])) {
+            for (NSArray<NSNumber *> *t in tokensOf(facetFor(into, name))) {
                 if (!taken[t[0]]) taken[t[0]] = [NSMutableSet set];
                 [taken[t[0]] addObject:t[1]];
             }
@@ -133,8 +142,8 @@ int main(int argc, const char *argv[]) {
         NSArray<NSData *> *fromKeys = [from allAssetKeys], *intoKeys = [into allAssetKeys];
         NSUInteger removed = 0, copied = 0;
         for (NSString *name in icon) {
-            NSArray *fromFacet = tokensOf([from renditionKeyForName:name.UTF8String]);
-            NSArray *intoFacet = [intoNames containsObject:name] ? tokensOf([into renditionKeyForName:name.UTF8String]) : nil;
+            NSArray *fromFacet = tokensOf(facetFor(from, name));
+            NSArray *intoFacet = [intoNames containsObject:name] ? tokensOf(facetFor(into, name)) : nil;
             if (!fromFacet.count) {
                 printf("  %s: no facet in from, left out\n", name.UTF8String);
                 continue;
@@ -189,6 +198,8 @@ int main(int argc, const char *argv[]) {
             fprintf(stderr, "icon-transplant: nothing was copied\n");
             return 5;
         }
+        if ([into respondsToSelector:@selector(setRenditionCount:)]) [into setRenditionCount:(unsigned int)[into allAssetKeys].count];
+        if ([into respondsToSelector:@selector(useBitmapIndex)] && [into useBitmapIndex] && [into respondsToSelector:@selector(updateBitmapInfo)]) [into updateBitmapInfo];
         if (![into writeToDiskAndCompact:YES]) {
             fprintf(stderr, "icon-transplant: into could not be written\n");
             return 6;
