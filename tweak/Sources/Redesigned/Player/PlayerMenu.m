@@ -14,6 +14,7 @@
 #import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Shared/Lyrics/Lyrics.h"
+#import "Shared/Player/PlayerSettings.h"
 #import "Shared/Player/PlayerState.h"
 #import "Shared/Player/SpeedPitch.h"
 #import "Player.h"
@@ -64,6 +65,16 @@ static NSArray<UIMenuElement *> *playerItems(void) {
     if (SGRPlayerLyricsAvailable() && SGRKaraokeCanTranslateNow()) {
         [items addObject:[UIAction actionWithTitle:@"Translate Lyrics" image:symbol(@"translate") identifier:nil
                                            handler:^(UIAction *action) { SGRKaraokeTranslateNow(); }]];
+    }
+    // Block the song playing, which skips it now and wherever it comes up (Shared/Player/SongBlock.m).
+    NSString *playing = SGURIString(SGPlayerState().track.URI);
+    if ([playing hasPrefix:@"spotify:track:"]) {
+        BOOL blocked = SGSongBlocked(playing);
+        UIAction *block = [UIAction actionWithTitle:blocked ? @"Unblock This Song" : @"Block This Song"
+                                              image:symbol(blocked ? @"hand.raised.slash" : @"hand.raised") identifier:nil
+                                            handler:^(UIAction *action) { SGBlockPlayingSong(!blocked); }];
+        if (!blocked) block.attributes = UIMenuElementAttributesDestructive;
+        [items addObject:block];
     }
     if (SGLyricCardAvailable()) {
         [items addObject:[UIAction actionWithTitle:@"Share Lyrics" image:symbol(@"square.and.arrow.up") identifier:nil
