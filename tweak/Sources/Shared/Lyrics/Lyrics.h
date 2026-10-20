@@ -37,6 +37,12 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese);
 NSString *SGTamilReading(NSString *text);
 // IndicReading.m: the same for Hindi, Marathi, Bengali, Punjabi, Gujarati, Odia, Telugu, Kannada and Malayalam.
 NSString *SGIndicReading(NSString *text);
+// Shared/LyricsSources/PublishedRomanisation.m: the spelling a song's own romanized lyrics give a line, which
+// SGLyricsRomanised answers with before its own reading; nil until one was found for the line. Safe from any thread.
+NSString *SGLyricsPublishedRomanised(NSString *text);
+// Looks up a song's romanized lyrics once its lines (mostly in an Indian script) are kept, while Romanized lyrics
+// is on; lines that line up are kept again with the published spelling as their pronunciation. Main queue.
+void SGLyricsFindPublishedRomanisation(NSString *track, NSArray<SGKaraokeLine *> *lines);
 // LyricCard.m: a few of the playing track's lines picked from a list and shared as an image over its cover,
 // with their pronunciation under them if wanted. Available once the track's lines are in.
 @class UIViewController;

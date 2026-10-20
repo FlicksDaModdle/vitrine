@@ -147,6 +147,7 @@ static void keep(NSString *track, NSArray<SGKaraokeLine *> *lines) {
     }
     sg_lyrics[track] = SGKaraokeInTimeOrder(lines);
     if (lines.count) translate(track);
+    SGLyricsFindPublishedRomanisation(track, sg_lyrics[track]);
     announce(track);
 }
 

@@ -52,6 +52,9 @@ static NSString *readJapanese(NSString *text) {
 NSString *SGLyricsRomanised(NSString *text, BOOL japanese) {
     // Only a line with a letter of another script: Latin with accents (German, Vietnamese) is left alone.
     if (!text.length || !has(text, @"[\\p{L}&&[^\\p{Latin}]]")) return nil;
+    // The song's own published spelling of the line, where one was found (PublishedRomanisation.m).
+    NSString *published = SGLyricsPublishedRomanised(text);
+    if (published.length) return published;
     static NSCache<NSString *, NSString *> *kept;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ kept = [NSCache new]; });
