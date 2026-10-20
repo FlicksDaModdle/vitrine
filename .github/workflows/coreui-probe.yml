@@ -1,0 +1,16 @@
+name: Probe CoreUI
+
+# A development aid: lists CoreUI's asset storage methods as annotations, for scripts/icon-transplant.m.
+on: workflow_dispatch
+
+jobs:
+  probe:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          clang -fobjc-arc -framework Foundation scripts/coreui-probe.m -o probe
+          ./probe | grep -viE " -_" > out.txt || true
+          wc -l out.txt
+          split -b 60000 out.txt part.
+          for f in part.*; do echo "::notice title=coreui::$(sed -e 's/%/%25/g' "$f" | awk 'BEGIN{ORS="%0A"} {print}')"; done
