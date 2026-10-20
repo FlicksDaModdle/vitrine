@@ -3,8 +3,8 @@
 // the letters being sung, Romanized lyrics as that view has them, and the Lyrics page's look.
 //
 // The view keeps the sung line at a share of its height from the top (kAnchor there, 0.28), so here it is made
-// taller than the band by that share and lifted by it: the sung line stands at the top of the band, the lines
-// before it are cut off above, the next one is cut off below. It takes no touches (PlayerLyricsPreviewTap.x's tap
+// taller than the band by that share and lifted by it: the sung line stands near the top of the band, a little room
+// above it, the lines before it cut off above and the next one under it. It takes no touches (PlayerLyricsPreviewTap.x's tap
 // is over it) and its pronunciation and translation button is hidden. PlayerLyricsPreviewTap.x puts it over
 // Spotify's preview, whose own views it leaves in place with no alpha.
 #import "Core/SGCore.h"
@@ -13,6 +13,12 @@
 
 // The share of its height the karaoke view rests the sung line at (SGRKaraokeView.m's kAnchor).
 static const CGFloat kKaraokeAnchor = 0.28;
+// Between the cover and the sung line.
+static const CGFloat kTopRoom = 16;
+// The words at most this size here, so a line that wraps still fits the band twice over.
+static const CGFloat kMaxFont = 26;
+// How far the band reaches past the bottom of Spotify's preview, into the room above the chip row, fading out.
+static const CGFloat kReach = 36, kFade = 28;
 
 @interface SGRPreviewLineView : UIView
 @end
@@ -24,7 +30,10 @@ static const CGFloat kKaraokeAnchor = 0.28;
 - (instancetype)initWithFrame:(CGRect)frame {
     if (!(self = [super initWithFrame:frame])) return nil;
     self.userInteractionEnabled = NO;
-    self.clipsToBounds = YES;
+    // Clipped by a mask rather than the bounds: solid from the top, fading over its last kFade points.
+    CAGradientLayer *mask = [CAGradientLayer layer];
+    mask.colors = @[(id)UIColor.blackColor.CGColor, (id)UIColor.blackColor.CGColor, (id)UIColor.clearColor.CGColor];
+    self.layer.mask = mask;
     self.isAccessibilityElement = NO;
     return self;
 }
@@ -34,6 +43,7 @@ static const CGFloat kKaraokeAnchor = 0.28;
     // Made once the band is in a window, so the view starts on the song playing now.
     if (self.window && !_lyrics) {
         _lyrics = [[SGRKaraokeView alloc] initWithFrame:CGRectZero];
+        _lyrics.maxFontSize = kMaxFont;
         _lyrics.extrasHidden = YES;
         _lyrics.keepsSing = NO;
         _lyrics.userInteractionEnabled = NO;
@@ -46,12 +56,25 @@ static const CGFloat kKaraokeAnchor = 0.28;
     [super layoutSubviews];
     CGSize band = self.bounds.size;
     if (band.height <= 0) return;
-    CGFloat height = ceil(band.height / (1 - kKaraokeAnchor));
-    CGRect frame = CGRectMake(0, -round(height * kKaraokeAnchor), band.width, height);
+    // The sung line a little below the cover rather than against it, and the band under it for the line to come.
+    CGFloat top = MIN(kTopRoom, band.height * 0.2);
+    CGFloat height = ceil((band.height - top) / (1 - kKaraokeAnchor));
+    CGRect frame = CGRectMake(0, top - round(height * kKaraokeAnchor), band.width, height);
     if (!CGRectEqualToRect(_lyrics.frame, frame)) _lyrics.frame = frame;
+    CAGradientLayer *mask = (CAGradientLayer *)self.layer.mask;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    mask.frame = self.bounds;
+    CGFloat fade = MIN(kFade, band.height * 0.3);
+    mask.locations = @[@0, @(MAX(0, (band.height - fade) / band.height)), @1];
+    [CATransaction commit];
 }
 
 @end
+
+CGFloat SGRPreviewLineReach(void) {
+    return kReach;
+}
 
 UIView *SGRPreviewLineMake(void) {
     return [SGRPreviewLineView new];

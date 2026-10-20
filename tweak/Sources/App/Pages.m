@@ -163,6 +163,11 @@ UIViewController *SGPlayerSettingsPage(void) {
         SGHideRow(@"Switch to video", @"The chip over the title of a song with a music video", SGKeyHideVideoSwitch),
     ])];
 
+    [sections addObject:SGNotedSection(@"Shuffle", @[
+        SGSwitchRow(@"True shuffle", @"Playlists in a plain random order instead of Spotify's weighted one", SGKeyTrueShuffle),
+    ], @"Turning shuffle on for a playlist deals its songs in a fair random order, the song playing first. Spotify's "
+       @"shuffle button then reads off; turn it on again for a new order. Albums, Liked Songs and stations keep Spotify's shuffle.")];
+
     [sections addObject:SGNotedSection(@"Lossless", @[
         SGOptionRow(@"Lossless files", @"Your own FLACs in place of Spotify's stream", SGKeyLossless),
     ], @"Put FLAC or ALAC files in Files › Spotify › Lossless. A file plays when its title and length match the song "

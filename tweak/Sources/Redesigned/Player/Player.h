@@ -137,6 +137,8 @@ void SGRPlayerShowLyricsScreen(void);
 // (PlayerLyricsPreviewLine.m). On until switched off.
 #define SGRKeyLyricsPreviewOwn @"spotifyglass.redesign.lyrics.previewOwn"
 UIView *SGRPreviewLineMake(void);
+// How far past the bottom of Spotify's preview the line's band reaches.
+CGFloat SGRPreviewLineReach(void);
 BOOL SGRPreviewLineIsOurs(UIView *view);
 // The playing track's lines came in, or turned out to be none: the landscape screen lays out for it.
 void SGRPlayerLandscapeLinesChanged(void);

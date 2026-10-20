@@ -22,4 +22,7 @@
 // The mic stays when the extras go, for a host that lets it take its own touches while its controls are
 // hidden (the player's lines on their own, Redesigned/Player/PlayerLyrics.x), so Sing is always in reach.
 @property (nonatomic) BOOL keepsSing;
+// The largest the words may be set, for a host with a small room (the line under the player's cover); 0 for the
+// Lyrics page's size as it is.
+@property (nonatomic) CGFloat maxFontSize;
 @end

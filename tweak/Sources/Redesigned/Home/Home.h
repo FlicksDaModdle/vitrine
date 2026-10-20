@@ -32,6 +32,9 @@
 // Points of room between the title row and the first shelf, added to the feed's top inset; unset is 16.
 #define SGRKeyHomeHeaderGap @"spotifyglass.redesign.home.headerGap"
 CGFloat SGRHomeHeaderGap(void);
+// The avatar opens a glass menu of the side drawer's rows (HomeProfileMenu.m) instead of the drawer. On until switched off.
+#define SGRKeyHomeProfileMenu @"spotifyglass.redesign.home.profileMenu"
+NSArray<UIMenuElement *> *SGRHomeProfileMenuElements(UIView *face);
 BOOL SGRHomeLook(void);
 // Top picks (HomeTopPicks.x): the shelf nearest the top drawn large above the shortcuts. On until switched off.
 #define SGRKeyHomeTopPicks @"spotifyglass.redesign.home.topPicks"

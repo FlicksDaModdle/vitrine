@@ -1445,12 +1445,18 @@ typedef struct {
 // and the wave every held word's, so a change is the song measured again in it and crossfaded over.
 - (void)takeLook {
     SGRLyricsLook look = SGRLyricsLookNow();
-    _fontSize = look.size;
+    _fontSize = _maxFontSize > 0 ? MIN(look.size, _maxFontSize) : look.size;
     _lineGap = look.spacing;
     _blurPerLine = kBlurPerLine * look.blur;
     _maxBlur = kMaxBlur * look.blur;
     sgr_glowScale = look.glow;
     sgr_waveScale = look.wave;
+}
+
+- (void)setMaxFontSize:(CGFloat)maxFontSize {
+    if (_maxFontSize == maxFontSize) return;
+    _maxFontSize = maxFontSize;
+    [self lookChanged];
 }
 
 - (void)lookChanged {

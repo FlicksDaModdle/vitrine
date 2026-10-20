@@ -197,7 +197,11 @@ static void previewLaidOut(UIView *view) {
         objc_setAssociatedObject(view, &kLineKey, line, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (own) {
-        line.frame = view.bounds;
+        // Into the room under the preview, which Spotify leaves empty above the chip row; the preview lets it show.
+        CGRect bounds = view.bounds;
+        bounds.size.height += SGRPreviewLineReach();
+        line.frame = bounds;
+        for (UIView *v = view; v && v != view.superview.superview; v = v.superview) v.clipsToBounds = NO;
         if (line.superview != view) [view addSubview:line];
     } else [line removeFromSuperview];
     for (UIView *sub in view.subviews) {

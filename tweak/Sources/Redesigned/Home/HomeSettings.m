@@ -30,6 +30,7 @@ UIViewController *SGRHomeSettingsPage(void) {
                        @"A shelf Home does not show today leaves Top picks off until it is back."),
         SGSection(@"Header", @[
             SGSwitchRow(@"Floating profile pill", @"The filter button and your avatar stay up while Home scrolls under them", SGRKeyHomePillFloats),
+            SGSwitchRow(@"Profile menu", @"Your avatar opens a glass menu of the side drawer's pages", SGRKeyHomeProfileMenu),
             SGSliderRow(@"Space under the header", nil, 0, 48, 4, ^double { return SGRHomeHeaderGap(); },
                         ^(double value) { [NSUserDefaults.standardUserDefaults setDouble:value forKey:SGRKeyHomeHeaderGap]; },
                         ^NSString *(double value) { return [NSString stringWithFormat:@"%.0f pt", value]; }),

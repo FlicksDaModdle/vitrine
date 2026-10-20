@@ -37,6 +37,7 @@ static const CGFloat kTintHeight = 480;
 // outside a button goes through to the avatar under them.
 @interface SGRHomePillButtons : UIView
 @property (nonatomic, strong) UIButton *filter;
+@property (nonatomic, strong) UIButton *profile;   // over the avatar: its menu (HomeProfileMenu.m)
 @end
 @implementation SGRHomePillButtons
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
@@ -53,6 +54,7 @@ static const CGFloat kTintHeight = 480;
 }
 @end
 static NSString *sg_tabName;
+static __weak UIView *sg_face;   // the avatar, Spotify's, in the title row
 
 static void vanish(UIView *view) {
     if (!view) return;
@@ -198,6 +200,14 @@ static SGRHomePillButtons *buttonsIn(UIView *header) {
         }]]];
         buttons.filter.showsMenuAsPrimaryAction = YES;
         [buttons addSubview:buttons.filter];
+        buttons.profile = [UIButton buttonWithType:UIButtonTypeCustom];
+        buttons.profile.accessibilityLabel = @"Profile";
+        buttons.profile.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+        buttons.profile.menu = [UIMenu menuWithChildren:@[[UIDeferredMenuElement elementWithUncachedProvider:^(void (^completion)(NSArray<UIMenuElement *> *)) {
+            completion(SGRHomeProfileMenuElements(sg_face));
+        }]]];
+        buttons.profile.showsMenuAsPrimaryAction = YES;
+        [buttons addSubview:buttons.profile];
         objc_setAssociatedObject(header, &kButtonsKey, buttons, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (buttons.superview != header) [header addSubview:buttons];
@@ -252,6 +262,12 @@ static CGFloat layoutPill(UIView *header, UIStackView *stack, UIView *face) {
     place(buttons, pill);
     CGRect filter = CGRectMake(kPillPad, 0, kPillButton, kPillHeight);
     if (!CGRectEqualToRect(buttons.filter.frame, filter)) buttons.filter.frame = filter;
+    // Over the avatar, taking its taps for the menu; off, the avatar under it opens the drawer as Spotify's does.
+    buttons.profile.hidden = !face || !SGEnabled(SGRKeyHomeProfileMenu);
+    if (face) {
+        CGRect profile = CGRectOffset(faceFrame, -pill.origin.x, -pill.origin.y);
+        if (!CGRectEqualToRect(buttons.profile.frame, profile)) buttons.profile.frame = profile;
+    }
     SGRGlassCapsuleInside(glass, &kPillGlassKey, pill.size, NO);
     return CGRectGetMinX(pill);
 }
@@ -325,7 +341,6 @@ static BOOL findHeader(UIView *view) {
 // The title row scrolls away with the page, as the Music app's large title and avatar do: the title, the glass pill
 // and Spotify's avatar rise with what is under them and fade over the title's height, so the page never passes
 // under them.
-static __weak UIView *sg_face;
 static void rise(UIView *part, CGAffineTransform transform, CGFloat alpha) {
     if (!CGAffineTransformEqualToTransform(part.transform, transform)) part.transform = transform;
     if (part.alpha != alpha) part.alpha = alpha;
