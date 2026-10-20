@@ -26,6 +26,12 @@
 // those hooks install and Home has the plain shortcuts and title. On until switched off; read at launch
 // (SGRHomeLook).
 #define SGRKeyHomeLook @"spotifyglass.redesign.home.look"
+// The title row's pill (the filter button and the avatar) stays where it is while the page scrolls under it, instead of
+// rising and fading with the title (HomeHeader.x). On until switched off.
+#define SGRKeyHomePillFloats @"spotifyglass.redesign.home.pillFloats"
+// Points of room between the title row and the first shelf, added to the feed's top inset; unset is 16.
+#define SGRKeyHomeHeaderGap @"spotifyglass.redesign.home.headerGap"
+CGFloat SGRHomeHeaderGap(void);
 BOOL SGRHomeLook(void);
 // Top picks (HomeTopPicks.x): the shelf nearest the top drawn large above the shortcuts. On until switched off.
 #define SGRKeyHomeTopPicks @"spotifyglass.redesign.home.topPicks"

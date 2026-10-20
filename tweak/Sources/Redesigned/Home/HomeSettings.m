@@ -28,6 +28,12 @@ UIViewController *SGRHomeSettingsPage(void) {
     return [[SGModPage alloc] initWithTitle:@"Home" intro:SGRestartNote sections:@[
         SGNotedSection(nil, @[look, topPicks, from, colour],
                        @"A shelf Home does not show today leaves Top picks off until it is back."),
+        SGSection(@"Header", @[
+            SGSwitchRow(@"Floating profile pill", @"The filter button and your avatar stay up while Home scrolls under them", SGRKeyHomePillFloats),
+            SGSliderRow(@"Space under the header", nil, 0, 48, 4, ^double { return SGRHomeHeaderGap(); },
+                        ^(double value) { [NSUserDefaults.standardUserDefaults setDouble:value forKey:SGRKeyHomeHeaderGap]; },
+                        ^NSString *(double value) { return [NSString stringWithFormat:@"%.0f pt", value]; }),
+        ]),
         SGSection(@"On Home", @[
             SGShownRow(@"Shortcuts", nil, SGRKeyHomeHideShortcuts),
             SGShownRow(@"DJ", nil, SGRKeyHomeHideDJ),

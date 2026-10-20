@@ -351,9 +351,39 @@ static void followScroll(UIScrollView *scroll) {
     CGAffineTransform up = CGAffineTransformMakeTranslation(0, -scrolled);
     CGFloat alpha = 1 - MIN(1, scrolled / MAX(1, title.bounds.size.height));
     rise(title, up, alpha);
-    riseGlass(objc_getAssociatedObject(sg_header, &kGlassKey), up, alpha);
-    rise(objc_getAssociatedObject(sg_header, &kButtonsKey), up, alpha);
-    if ([sg_face isDescendantOfView:sg_header]) rise(sg_face, up, alpha);
+    // The pill floats where it is, over the page scrolling under it (SGRKeyHomePillFloats), unless switched off.
+    BOOL floats = SGEnabled(SGRKeyHomePillFloats) && SGRHomeLook();
+    CGAffineTransform pillUp = floats ? CGAffineTransformIdentity : up;
+    CGFloat pillAlpha = floats ? 1 : alpha;
+    riseGlass(objc_getAssociatedObject(sg_header, &kGlassKey), pillUp, pillAlpha);
+    rise(objc_getAssociatedObject(sg_header, &kButtonsKey), pillUp, pillAlpha);
+    if ([sg_face isDescendantOfView:sg_header]) rise(sg_face, pillUp, pillAlpha);
+}
+
+#pragma mark - room under the header
+
+CGFloat SGRHomeHeaderGap(void) {
+    id stored = [NSUserDefaults.standardUserDefaults objectForKey:SGRKeyHomeHeaderGap];
+    return [stored respondsToSelector:@selector(doubleValue)] ? MAX(0, MIN(48, [stored doubleValue])) : 16;
+}
+
+// The feed's top inset with the room added, kept as what was set and the gap in it: a pass of Spotify's that sets its
+// own inset again gets the room added again, a change of the slider swaps the old room for the new.
+static char kGapKey;
+static void padFeed(UIScrollView *feed) {
+    CGFloat gap = SGRHomeLook() ? SGRHomeHeaderGap() : 0;
+    NSArray<NSNumber *> *ours = objc_getAssociatedObject(feed, &kGapKey);
+    UIEdgeInsets inset = feed.contentInset;
+    CGFloat base = inset.top;
+    if (ours && fabs(inset.top - ours[0].doubleValue) < 0.5) {
+        if (fabs(ours[1].doubleValue - gap) < 0.5) return;
+        base = inset.top - ours[1].doubleValue;
+    }
+    BOOL atTop = feed.contentOffset.y <= -feed.adjustedContentInset.top + 1;
+    inset.top = base + gap;
+    feed.contentInset = inset;
+    objc_setAssociatedObject(feed, &kGapKey, @[@(inset.top), @(gap)], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (atTop) feed.contentOffset = CGPointMake(feed.contentOffset.x, -feed.adjustedContentInset.top);
 }
 
 @interface SGRHomeTitleFollower : NSObject
@@ -373,6 +403,7 @@ static __weak UIScrollView *sg_feed;
 static __weak UIView *sg_pageView;
 static void followFeed(UIScrollView *feed) {
     sg_feed = feed;
+    padFeed(feed);
     if (!objc_getAssociatedObject(feed, &kFollowerKey)) {
         SGRHomeTitleFollower *follower = [SGRHomeTitleFollower new];
         follower.scroll = feed;
@@ -487,6 +518,7 @@ static void layoutHeader(UIViewController *page) {
     for (UIView *sub in view.subviews) {
         if ([sub isKindOfClass:UICollectionView.class]) {
             if (sub != sg_feed) followFeed((UIScrollView *)sub);
+            else padFeed((UIScrollView *)sub);
             break;
         }
     }
