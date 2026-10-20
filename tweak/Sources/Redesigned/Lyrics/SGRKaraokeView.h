@@ -24,6 +24,9 @@ void SGRKaraokeTranslateNow(void);
 // The pronunciation and translation button goes with the host's controls when they are hidden, and Sing's
 // mic with it unless keepsSing is set.
 @property (nonatomic) BOOL extrasHidden;
+// No bottom row is kept clear: the lines fade at the bottom edge only, the mic and the extras button being out of
+// sight for good (the line under the player's cover, PlayerLyricsPreviewLine.m).
+@property (nonatomic) BOOL noBottomRow;
 // The mic stays when the extras go, for a host that lets it take its own touches while its controls are
 // hidden (the player's lines on their own, Redesigned/Player/PlayerLyrics.x), so Sing is always in reach.
 @property (nonatomic) BOOL keepsSing;

@@ -63,6 +63,9 @@ static NSHashTable<UIView *> *sg_lines;
         _lyrics.maxFontSize = kMaxFont;
         _lyrics.sizePlace = SGRLyricsPlacePreview;
         _lyrics.extrasHidden = YES;
+        // Its extras button stays laid out, only its glass hidden, and the lines faded out above it: a line set lower
+        // in a taller band was cut in half there.
+        _lyrics.noBottomRow = YES;
         _lyrics.keepsSing = NO;
         _lyrics.userInteractionEnabled = NO;
         if (!sg_lines) sg_lines = [NSHashTable weakObjectsHashTable];

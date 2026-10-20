@@ -1720,7 +1720,7 @@ static NSHashTable<SGRKaraokeView *> *sg_views;
     CGFloat height = self.bounds.size.height;
     if (height <= 0) return;
     CGFloat floor = height;
-    for (UIView *view in @[_sing ?: NSNull.null, _extrasBox ?: NSNull.null]) {
+    for (UIView *view in _noBottomRow ? @[] : @[_sing ?: NSNull.null, _extrasBox ?: NSNull.null]) {
         if ([view isKindOfClass:UIView.class] && !view.hidden && view.superview) floor = MIN(floor, CGRectGetMinY(view.frame) - 8);
     }
     CGFloat clear = MAX(0, MIN(1, (height - floor) / height));
