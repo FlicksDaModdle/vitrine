@@ -5,6 +5,10 @@ name: Scan Spotify's symbols
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Runner to build on (macos-latest; macos-15-intel when Apple silicon runners are busy)"
+        default: macos-latest
+        type: string
       ipa_url:
         description: "Direct link to a decrypted Spotify IPA"
         required: true
@@ -16,7 +20,7 @@ on:
 
 jobs:
   scan:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     steps:
       - uses: actions/checkout@v5
 
