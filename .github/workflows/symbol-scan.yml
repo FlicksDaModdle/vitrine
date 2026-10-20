@@ -1,0 +1,53 @@
+name: Scan Spotify's symbols
+
+# A development aid: lists the Objective-C and Swift names in a Spotify IPA that match a pattern, as
+# annotations on the run, so a feature can be planned without a Mac. Nothing is uploaded or committed.
+on:
+  workflow_dispatch:
+    inputs:
+      ipa_url:
+        description: "Direct link to a decrypted Spotify IPA"
+        required: true
+        type: string
+      pattern:
+        description: "Case-insensitive extended regex to match names against"
+        default: "shuffl"
+        type: string
+
+jobs:
+  scan:
+    runs-on: macos-latest
+    steps:
+      - uses: levibostian/action-hide-sensitive-inputs@v1
+
+      - name: Download IPA
+        run: |
+          curl -fsSL "${{ inputs.ipa_url }}" -o spotify.ipa
+          unzip -q spotify.ipa 'Payload/*' -d ipa
+
+      - name: Scan
+        env:
+          PATTERN: ${{ inputs.pattern }}
+        run: |
+          APP="$(ls -d ipa/Payload/*.app)"
+          : > names.txt
+          for bin in "$APP/$(plutil -extract CFBundleExecutable raw -o - "$APP/Info.plist")" "$APP"/Frameworks/*.framework/*; do
+            [ -f "$bin" ] && file "$bin" | grep -q Mach-O || continue
+            where="$(basename "$bin")"
+            # Objective-C classes and selectors.
+            otool -ov "$bin" 2>/dev/null | sed -n 's/^ *\(name\|imp\) *0x[0-9a-f]* *//p' | grep -iE "$PATTERN" | sed "s|^|$where objc |" >> names.txt || true
+            # Swift and C++ symbols, demangled.
+            nm -j "$bin" 2>/dev/null | grep -iE "$PATTERN" | xcrun swift-demangle --simplified 2>/dev/null | sed "s|^|$where sym |" >> names.txt || true
+            # Strings, for names the symbol table does not keep.
+            strings -n 6 "$bin" | grep -iE "$PATTERN" | sed "s|^|$where str |" >> names.txt || true
+          done
+          sort -u names.txt -o names.txt
+          echo "$(wc -l < names.txt) names"
+          # One annotation per 60 KB, at most 10 (GitHub keeps 10 notices a step).
+          split -b 60000 names.txt part.
+          n=0
+          for f in part.*; do
+            n=$((n+1)); [ $n -gt 10 ] && break
+            body="$(sed -e 's/%/%25/g' "$f" | awk 'BEGIN{ORS="%0A"} {print}')"
+            echo "::notice title=names $n::$body"
+          done
