@@ -23,16 +23,16 @@ struct sg_keyfmt { uint32_t tag; uint32_t version; uint32_t count; uint32_t attr
 @interface CUICommonAssetStorage : NSObject
 - (instancetype)initWithPath:(NSString *)path;
 - (const struct sg_keyfmt *)keyFormat;
-- (NSArray<NSData *> *)allAssetKeys;
-- (NSData *)assetForKey:(NSData *)key;
+- (NSArray *)allAssetKeys;
+- (NSData *)assetForKey:(id)key;
 - (const struct sg_keytoken *)renditionKeyForName:(const char *)name hotSpot:(CGPoint *)hotSpot;
 - (NSArray<NSString *> *)allRenditionNames;
 @end
 
 @interface CUIMutableCommonAssetStorage : CUICommonAssetStorage
 - (instancetype)initWithPath:(NSString *)path forWriting:(BOOL)writing;
-- (BOOL)setAsset:(NSData *)asset forKey:(NSData *)key;
-- (BOOL)removeAssetForKey:(NSData *)key;
+- (BOOL)setAsset:(NSData *)asset forKey:(const void *)key withLength:(unsigned long)length;
+- (void)removeAssetForKey:(id)key;
 - (BOOL)setRenditionKey:(const struct sg_keytoken *)key hotSpot:(CGPoint)hotSpot forName:(const char *)name;
 - (BOOL)writeToDiskAndCompact:(BOOL)compact;
 - (void)setRenditionCount:(unsigned int)count;
@@ -58,17 +58,22 @@ static void need(id object, SEL selector) {
     exit(2);
 }
 
-// A key's attributes by their identifiers, read in its catalog's format.
-static NSDictionary<NSNumber *, NSNumber *> *attributesOf(NSData *key, const struct sg_keyfmt *format) {
+// A key's attributes by their identifiers. allAssetKeys answers CUIRenditionKey objects, which carry their own
+// list of attribute and value pairs whatever the catalog's format.
+@interface NSObject (SGRenditionKey)
+- (const struct sg_keytoken *)keyList;
+@end
+
+static NSDictionary<NSNumber *, NSNumber *> *attributesOf(id key) {
     NSMutableDictionary *attributes = [NSMutableDictionary dictionary];
-    const uint16_t *values = key.bytes;
-    NSUInteger n = MIN(key.length / 2, format->count);
-    for (NSUInteger i = 0; i < n; i++) attributes[@(format->attributes[i])] = @(values[i]);
+    if (![key respondsToSelector:@selector(keyList)]) return attributes;
+    for (const struct sg_keytoken *t = [key keyList]; t && (t->identifier || t->value); t++) attributes[@(t->identifier)] = @(t->value);
     return attributes;
 }
 
-static NSData *keyFrom(NSDictionary<NSNumber *, NSNumber *> *attributes, const struct sg_keyfmt *format, NSUInteger length) {
-    NSMutableData *key = [NSMutableData dataWithLength:MAX(length, format->count * 2)];
+// The raw key a catalog stores: a 16-bit value per attribute of its format, in the format's order.
+static NSData *keyFrom(NSDictionary<NSNumber *, NSNumber *> *attributes, const struct sg_keyfmt *format) {
+    NSMutableData *key = [NSMutableData dataWithLength:format->count * 2];
     uint16_t *values = key.mutableBytes;
     for (NSUInteger i = 0; i < format->count; i++) values[i] = attributes[@(format->attributes[i])].unsignedShortValue;
     return key;
@@ -108,7 +113,7 @@ int main(int argc, const char *argv[]) {
             return 2;
         }
         for (NSString *sel in @[@"keyFormat", @"allAssetKeys", @"assetForKey:", @"renditionKeyForName:hotSpot:", @"allRenditionNames"]) need(from, NSSelectorFromString(sel));
-        for (NSString *sel in @[@"setAsset:forKey:", @"removeAssetForKey:", @"setRenditionKey:hotSpot:forName:", @"writeToDiskAndCompact:"]) need(into, NSSelectorFromString(sel));
+        for (NSString *sel in @[@"setAsset:forKey:withLength:", @"removeAssetForKey:", @"setRenditionKey:hotSpot:forName:", @"writeToDiskAndCompact:"]) need(into, NSSelectorFromString(sel));
 
         const struct sg_keyfmt *fromFormat = [from keyFormat], *intoFormat = [into keyFormat];
         NSMutableString *fmt = [NSMutableString string];
@@ -139,7 +144,7 @@ int main(int argc, const char *argv[]) {
             }
         }
 
-        NSArray<NSData *> *fromKeys = [from allAssetKeys], *intoKeys = [into allAssetKeys];
+        NSArray *fromKeys = [from allAssetKeys], *intoKeys = [into allAssetKeys];
         NSUInteger removed = 0, copied = 0;
         for (NSString *name in icon) {
             NSArray *fromFacet = tokensOf(facetFor(from, name));
@@ -149,9 +154,10 @@ int main(int argc, const char *argv[]) {
                 continue;
             }
             if (intoFacet.count) {
-                for (NSData *key in intoKeys) {
-                    if (!matches(attributesOf(key, intoFormat), intoFacet)) continue;
-                    if ([into removeAssetForKey:key]) removed++;
+                for (id key in intoKeys) {
+                    if (!matches(attributesOf(key), intoFacet)) continue;
+                    [into removeAssetForKey:key];
+                    removed++;
                 }
             } else {
                 // The same attributes, each with a value INTO's names do not use.
@@ -175,9 +181,18 @@ int main(int argc, const char *argv[]) {
                 intoFacet = made;
             }
             NSUInteger mine = 0;
-            for (NSData *key in fromKeys) {
-                NSMutableDictionary *attributes = [attributesOf(key, fromFormat) mutableCopy];
+            for (id key in fromKeys) {
+                NSMutableDictionary *attributes = [attributesOf(key) mutableCopy];
                 if (!matches(attributes, fromFacet)) continue;
+                // A variant told apart by an attribute INTO's keys do not have (the display gamut, 24) would land on
+                // the sRGB one's key: only the variant with that attribute unset goes over.
+                BOOL elsewhere = NO;
+                for (NSNumber *attribute in attributes) {
+                    BOOL known = NO;
+                    for (uint32_t i = 0; i < intoFormat->count; i++) known |= intoFormat->attributes[i] == attribute.unsignedIntValue;
+                    if (!known && [attributes[attribute] unsignedShortValue]) elsewhere = YES;
+                }
+                if (elsewhere) continue;
                 for (NSArray<NSNumber *> *t in intoFacet) attributes[t[0]] = t[1];
                 for (NSNumber *attribute in attributes) {
                     BOOL known = NO;
@@ -186,7 +201,8 @@ int main(int argc, const char *argv[]) {
                                                                                     name.UTF8String, attribute.unsignedIntValue, [attributes[attribute] unsignedShortValue]);
                 }
                 NSData *asset = [from assetForKey:key];
-                if (asset && [into setAsset:asset forKey:keyFrom(attributes, intoFormat, 0)]) {
+                NSData *raw = keyFrom(attributes, intoFormat);
+                if (asset && [into setAsset:asset forKey:raw.bytes withLength:raw.length]) {
                     copied++;
                     mine++;
                 }
