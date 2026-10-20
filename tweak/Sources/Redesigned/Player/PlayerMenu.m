@@ -66,6 +66,8 @@ static NSArray<UIMenuElement *> *playerItems(void) {
         [items addObject:[UIAction actionWithTitle:@"Translate Lyrics" image:symbol(@"translate") identifier:nil
                                            handler:^(UIAction *action) { SGRKaraokeTranslateNow(); }]];
     }
+    [items addObject:[UIAction actionWithTitle:@"Save Queue as Playlist" image:symbol(@"text.badge.plus") identifier:nil
+                                       handler:^(UIAction *action) { SGSaveQueueAsPlaylist(); }]];
     // Block the song playing, which skips it now and wherever it comes up (Shared/Player/SongBlock.m).
     NSString *playing = SGURIString(SGPlayerState().track.URI);
     if ([playing hasPrefix:@"spotify:track:"]) {

@@ -16,3 +16,6 @@ void SGSetSongBlocked(NSString *uri, NSString *title, NSString *artist, BOOL blo
 // The song playing blocked (and skipped) or unblocked.
 void SGBlockPlayingSong(BOOL blocked);
 UIViewController *SGSongBlockSettingsPage(void);
+
+// SaveQueue.m: the song playing and the queue after it saved as a new private playlist, with an alert saying how it went.
+void SGSaveQueueAsPlaylist(void);
