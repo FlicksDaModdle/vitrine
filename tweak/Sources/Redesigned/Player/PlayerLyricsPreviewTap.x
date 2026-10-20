@@ -4,7 +4,7 @@
 // goes to a thumbnail and the lines take its room, with every control of the player still there. The tap is a recognizer on a
 // clear view over the preview, which the recognizers of the views around it (the cover's tilt view takes taps
 // and holds, PlayerArtwork.x) are made to wait on: a control there lost its touches to them, and the cover
-// opened instead. With the switch off, a track without lines, or the lines already up, the view is not there.
+// opened instead. With the switch off the view is not there; a tap before the track's lines are in does nothing.
 //
 // Its text follows Romanized lyrics (Shared/Lyrics): in place of the line with Show romanized on Instead of
 // the original, under it otherwise, as the lyrics view has them. The text is set into labels inside the
@@ -43,7 +43,7 @@ static BOOL sg_setting;   // a text of ours going in, which the hooks pass throu
 
 - (void)tapped:(UITapGestureRecognizer *)tap {
     if (tap.state != UIGestureRecognizerStateEnded) return;
-    SGLog(@"redesign player: the lyric preview was tapped");
+    SGLog(@"redesign player: the lyric preview was tapped (lines %d, open %d)", SGRPlayerLyricsAvailable(), SGRPlayerLyricsOpen());
     if (SGRPlayerLyricsAvailable() && !SGRPlayerLyricsOpen()) SGRPlayerToggleLyrics();
 }
 
@@ -189,7 +189,9 @@ static void previewLaidOut(UIView *view) {
     }
     // The mod's own line in place of Spotify's: Spotify's views stay, with no alpha, and come back with the switch off.
     UIView *line = objc_getAssociatedObject(view, &kLineKey);
-    BOOL own = SGEnabled(SGRKeyLyricsPreviewOwn) && SGRPlayerLyricsAvailable();
+    // Not waiting on the lines: Spotify lays the preview out before they are in, and may not again. The line shows
+    // nothing until they come, and the tap asks for them when it lands.
+    BOOL own = SGEnabled(SGRKeyLyricsPreviewOwn);
     if (own && !line) {
         line = SGRPreviewLineMake();
         objc_setAssociatedObject(view, &kLineKey, line, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -219,7 +221,7 @@ static void previewLaidOut(UIView *view) {
     });
 
     SGRPreviewTap *tap = objc_getAssociatedObject(view, &kTapKey);
-    BOOL wanted = SGEnabled(SGRKeyLyricsPreviewOpensScreen) && SGRPlayerLyricsAvailable() && !SGRPlayerLyricsOpen();
+    BOOL wanted = SGEnabled(SGRKeyLyricsPreviewOpensScreen);
     if (!wanted) {
         [tap removeFromSuperview];
         return;
