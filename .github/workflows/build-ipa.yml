@@ -20,8 +20,12 @@ on:
         description: "Add the Open in Spotify Safari extension (BillyCurtis/OpenSpotifySafariExtension)"
         default: true
         type: boolean
+      old_icon:
+        description: "Use the glass app icon of Spotify 9.1.78 (assets/old-icon.tar.enc, needs the OLD_ICON_KEY secret)"
+        default: true
+        type: boolean
       icon_ipa_url:
-        description: "Optional: a direct link to another Spotify IPA whose app icon to use (an older one with the glass icon)"
+        description: "Optional: a direct link to another Spotify IPA whose app icon to use instead"
         required: false
         type: string
       bundle_id:
@@ -65,13 +69,24 @@ jobs:
       # The app icon of another Spotify IPA (Old icon): its renditions moved into this one's Assets.car by
       # scripts/icon-transplant.m, through CoreUI, and its loose AppIcon PNGs copied over. Nothing else of the
       # other IPA is used. When the move fails the build goes on with Spotify's own icon.
+      # The 9.1.78 icon's files are kept encrypted in the repo, since it is public: the key is a secret of the repo's.
       - name: Use the other IPA's app icon
-        if: inputs.icon_ipa_url != ''
+        if: inputs.icon_ipa_url != '' || inputs.old_icon
+        env:
+          OLD_ICON_KEY: ${{ secrets.OLD_ICON_KEY }}
         run: |
           set -o pipefail
-          mkdir -p icon/old icon/new
-          curl -fsSL "${{ inputs.icon_ipa_url }}" -o icon/old.ipa
-          unzip -q icon/old.ipa 'Payload/*.app/Assets.car' 'Payload/*.app/AppIcon*' -d icon/old
+          mkdir -p icon/old/Payload/Old.app icon/new
+          if [ -n "${{ inputs.icon_ipa_url }}" ]; then
+            rm -rf icon/old && mkdir -p icon/old
+            curl -fsSL "${{ inputs.icon_ipa_url }}" -o icon/old.ipa
+            unzip -q icon/old.ipa 'Payload/*.app/Assets.car' 'Payload/*.app/AppIcon*' -d icon/old
+          elif [ -n "$OLD_ICON_KEY" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -in assets/old-icon.tar.enc -pass env:OLD_ICON_KEY | tar -x -C icon/old/Payload/Old.app
+          else
+            echo "::warning title=Old icon::The OLD_ICON_KEY secret is not set, so Spotify's own icon stays"
+            exit 0
+          fi
           (cd icon/new && unzip -q ../../ipa/spotify.ipa)
           APP="$(ls -d icon/new/Payload/*.app)"
           OLD="$(ls -d icon/old/Payload/*.app)"
