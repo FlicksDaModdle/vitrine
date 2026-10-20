@@ -253,3 +253,58 @@ void SGLyricCardPresent(UIViewController *from) {
     SGPresentDark(navigation);
     [host presentViewController:navigation animated:YES completion:nil];
 }
+
+#pragma mark - the song card
+
+// The song itself as a card: its cover large and rounded over the cover blurred, the title and the artist under it.
+static UIImage *songCardImage(UIImage *cover, NSString *title, NSString *artist) {
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.scale = 1;
+    format.opaque = YES;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:kCardSize format:format];
+    return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        CGRect bounds = {CGPointZero, kCardSize};
+        [UIColor.blackColor setFill];
+        UIRectFill(bounds);
+        UIImage *back = blurred(cover);
+        if (back) {
+            CGFloat side = MAX(kCardSize.width, kCardSize.height) * 1.15;
+            [back drawInRect:CGRectMake((kCardSize.width - side) / 2, (kCardSize.height - side) / 2, side, side)];
+            [[UIColor colorWithWhite:0 alpha:0.32] setFill];
+            UIRectFillUsingBlendMode(bounds, kCGBlendModeNormal);
+        }
+        CGFloat side = 720, top = 170;
+        CGRect art = CGRectMake((kCardSize.width - side) / 2, top, side, side);
+        if (cover) {
+            // A soft shadow under it, then the cover clipped round.
+            CGContextSaveGState(context.CGContext);
+            CGContextSetShadowWithColor(context.CGContext, CGSizeMake(0, 30), 60, [UIColor colorWithWhite:0 alpha:0.55].CGColor);
+            [[UIBezierPath bezierPathWithRoundedRect:art cornerRadius:40] fill];
+            CGContextRestoreGState(context.CGContext);
+            CGContextSaveGState(context.CGContext);
+            [[UIBezierPath bezierPathWithRoundedRect:art cornerRadius:40] addClip];
+            [cover drawInRect:art];
+            CGContextRestoreGState(context.CGContext);
+        }
+        NSMutableParagraphStyle *center = [NSMutableParagraphStyle new];
+        center.alignment = NSTextAlignmentCenter;
+        center.lineBreakMode = NSLineBreakByTruncatingTail;
+        CGFloat textTop = CGRectGetMaxY(art) + 70;
+        [(title ?: @"") drawInRect:CGRectMake(80, textTop, kCardSize.width - 160, 84) withAttributes:@{
+            NSFontAttributeName: [UIFont systemFontOfSize:64 weight:UIFontWeightHeavy], NSForegroundColorAttributeName: UIColor.whiteColor,
+            NSParagraphStyleAttributeName: center}];
+        [(artist ?: @"") drawInRect:CGRectMake(80, textTop + 92, kCardSize.width - 160, 60) withAttributes:@{
+            NSFontAttributeName: [UIFont systemFontOfSize:42 weight:UIFontWeightSemibold],
+            NSForegroundColorAttributeName: [UIColor colorWithWhite:1 alpha:0.75], NSParagraphStyleAttributeName: center}];
+    }];
+}
+
+void SGSongCardShare(UIViewController *from) {
+    SPTPlayerState *state = SGPlayerState();
+    if (!state.track) return;
+    UIImage *card = songCardImage(nowPlayingCover(), state.track.trackTitle, state.track.artistName);
+    UIViewController *host = from ?: SGTopController();
+    UIActivityViewController *sheet = [[UIActivityViewController alloc] initWithActivityItems:@[card] applicationActivities:nil];
+    sheet.popoverPresentationController.sourceView = host.view;
+    [host presentViewController:sheet animated:YES completion:nil];
+}

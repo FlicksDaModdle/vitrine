@@ -19,3 +19,7 @@ UIViewController *SGSongBlockSettingsPage(void);
 
 // SaveQueue.m: the song playing and the queue after it saved as a new private playlist, with an alert saying how it went.
 void SGSaveQueueAsPlaylist(void);
+
+// Scrobble.m: the rows that set ListenBrainz and Last.fm up.
+@class SGModRow;
+NSArray<SGModRow *> *SGScrobbleRows(void);

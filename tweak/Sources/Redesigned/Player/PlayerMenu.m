@@ -78,6 +78,8 @@ static NSArray<UIMenuElement *> *playerItems(void) {
         if (!blocked) block.attributes = UIMenuElementAttributesDestructive;
         [items addObject:block];
     }
+    [items addObject:[UIAction actionWithTitle:@"Share Song Card" image:symbol(@"photo.on.rectangle") identifier:nil
+                                       handler:^(UIAction *action) { SGSongCardShare(nil); }]];
     if (SGLyricCardAvailable()) {
         [items addObject:[UIAction actionWithTitle:@"Share Lyrics" image:symbol(@"square.and.arrow.up") identifier:nil
                                            handler:^(UIAction *action) { SGLyricCardPresent(nil); }]];

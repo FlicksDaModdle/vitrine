@@ -57,6 +57,8 @@ void SGLyricsFindPublishedRomanisation(NSString *track, NSArray<SGKaraokeLine *>
 @class UIViewController;
 BOOL SGLyricCardAvailable(void);
 void SGLyricCardPresent(UIViewController *from);
+// The song playing as a card (its cover, title and artist) through the share sheet.
+void SGSongCardShare(UIViewController *from);
 // Whether any of the lines has kana in it.
 @class SGKaraokeLine;
 BOOL SGLyricsLooksJapanese(NSArray<SGKaraokeLine *> *lines);

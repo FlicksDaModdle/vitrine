@@ -174,6 +174,10 @@ UIViewController *SGPlayerSettingsPage(void) {
     ], @"Turning shuffle on for a playlist deals its songs in a fair random order, the song playing first. Spotify's "
        @"shuffle button then reads off; turn it on again for a new order. Stations, mixes and podcasts keep Spotify's shuffle.")];
 
+    [sections addObject:SGNotedSection(@"Scrobbling", SGScrobbleRows(),
+        @"Songs you listen to, sent once they have played half their length or four minutes. Only the song, artist, album, "
+        @"length and time go out. Applies at once.")];
+
     [sections addObject:SGNotedSection(@"Lossless", @[
         SGOptionRow(@"Lossless files", @"Your own FLACs in place of Spotify's stream", SGKeyLossless),
     ], @"Put FLAC or ALAC files in Files › Spotify › Lossless. A file plays when its title and length match the song "
