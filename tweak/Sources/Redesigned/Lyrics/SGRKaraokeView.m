@@ -1346,9 +1346,13 @@ typedef struct {
     NSUInteger _meaningsAsked;
 }
 
+static NSHashTable<SGRKaraokeView *> *sg_views;
+
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return nil;
+    if (!sg_views) sg_views = [NSHashTable weakObjectsHashTable];
+    [sg_views addObject:self];
     self.hidden = YES;
     _focus = _openBreak = -1;
     _margin = kMargin;
@@ -2039,6 +2043,36 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
     [self setNeedsLayout];
 }
 
+// The song's lines translated at once by the best translator there is (Apple's Translate on the phone, then Apple
+// Intelligence, then Gemini with a key), from the player's ⋯ menu: NO when none is there or nothing needs one.
+- (BOOL)isSample {
+    return _sample != nil;
+}
+
+- (BOOL)translateNow {
+    if (!_lines.count || !_untranslated || _translating == _lines) return NO;
+    NSString *language = SGLyricsGeminiLanguage();
+    SGRTranslator translator = nil;
+    if (SGOnDeviceTranslation.translationAvailable) {
+        translator = ^(NSArray<SGKaraokeLine *> *lines, NSString *track, NSString *to, SGRTranslated progress, SGRTranslated done) {
+            [SGOnDeviceTranslation translate:textsOf(lines) to:to done:done];
+        };
+    } else if ([SGOnDeviceTranslation appleIntelligenceAvailable:language]) {
+        translator = ^(NSArray<SGKaraokeLine *> *lines, NSString *track, NSString *to, SGRTranslated progress, SGRTranslated done) {
+            [SGOnDeviceTranslation translateWithAppleIntelligence:textsOf(lines) to:to song:SGLyricsSongName(track)
+                                                         progress:^(NSArray<NSString *> *soFar) { progress(soFar, nil); } done:done];
+        };
+    } else if (SGGeminiKeySet()) {
+        translator = ^(NSArray<SGKaraokeLine *> *lines, NSString *track, NSString *to, SGRTranslated progress, SGRTranslated done) {
+            SGLyricsTranslateWithGemini(track, lines, to, done);
+        };
+    }
+    if (!translator) return NO;
+    SGRSetLyricsTextShown(SGRLyricsTextTranslation, YES);
+    [self translateWith:translator];
+    return YES;
+}
+
 // The song's lines into the Lyrics page's language, or the phone's: each line without a translation takes
 // the translator's, and translations are switched on so the answer shows. The whole song goes, for the sense.
 - (void)translateWith:(SGRTranslator)translator {
@@ -2479,3 +2513,25 @@ static BOOL anyUntranslated(NSArray<SGKaraokeLine *> *lines) {
 }
 
 @end
+
+BOOL SGRKaraokeCanTranslateNow(void) {
+    if (!SGOnDeviceTranslation.translationAvailable && ![SGOnDeviceTranslation appleIntelligenceAvailable:SGLyricsGeminiLanguage()]
+        && !SGGeminiKeySet()) return NO;
+    return SGKaraokeLinesForTrack(SGKaraokePlayingTrack()).count > 0;
+}
+
+// One view translates, the one on screen showing most of the song: the player's own lines, then any other. The
+// translations are saved by song (SavedTranslations.m), so every other view of it syncs them in.
+@interface SGRKaraokeView (SGRTranslateNow)
+- (BOOL)isSample;
+- (BOOL)translateNow;
+@end
+
+void SGRKaraokeTranslateNow(void) {
+    SGRKaraokeView *best = nil;
+    for (SGRKaraokeView *view in sg_views.allObjects) {
+        if (!view.window || [view isSample]) continue;
+        if (!best || view.sizePlace == SGRLyricsPlacePlayer || view.sizePlace == SGRLyricsPlaceFullScreen) best = view;
+    }
+    if (![best translateNow]) SGLog(@"lyrics: nothing to translate now (a view %d)", best != nil);
+}

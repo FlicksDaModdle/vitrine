@@ -12,6 +12,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/ContextMenu/ContextMenu.h"
 #import "Redesigned/Lyrics/LyricsLook.h"
+#import "Redesigned/Lyrics/SGRKaraokeView.h"
 #import "Shared/Lyrics/Lyrics.h"
 #import "Shared/Player/PlayerState.h"
 #import "Shared/Player/SpeedPitch.h"
@@ -60,6 +61,10 @@ static NSArray<UIMenuElement *> *playerItems(void) {
                                            handler:^(UIAction *action) { SGRPlayerShowLyricsScreen(); }]];
     }
     if (SGRPlayerLyricsAvailable()) [items addObject:SGRLyricsSizesMenu()];
+    if (SGRPlayerLyricsAvailable() && SGRKaraokeCanTranslateNow()) {
+        [items addObject:[UIAction actionWithTitle:@"Translate Lyrics" image:symbol(@"translate") identifier:nil
+                                           handler:^(UIAction *action) { SGRKaraokeTranslateNow(); }]];
+    }
     if (SGLyricCardAvailable()) {
         [items addObject:[UIAction actionWithTitle:@"Share Lyrics" image:symbol(@"square.and.arrow.up") identifier:nil
                                            handler:^(UIAction *action) { SGLyricCardPresent(nil); }]];

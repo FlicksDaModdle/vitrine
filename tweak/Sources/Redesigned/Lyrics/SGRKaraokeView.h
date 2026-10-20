@@ -8,6 +8,11 @@
 #import <UIKit/UIKit.h>
 #import "Shared/Lyrics/Lyrics.h"
 
+// The playing song's lyrics translated at once into the Lyrics page's language (the phone's by default) by the best
+// translator there is, from the player's ⋯ menu; and whether there is one and lines to give it.
+BOOL SGRKaraokeCanTranslateNow(void);
+void SGRKaraokeTranslateNow(void);
+
 @interface SGRKaraokeView : UIView
 // The Lyrics page's preview: `lines` played on a clock of its own, round and round every `length` ms, in
 // the look the page sets. It takes no touches and asks nothing of the player, the sources, Genius or Sing.
