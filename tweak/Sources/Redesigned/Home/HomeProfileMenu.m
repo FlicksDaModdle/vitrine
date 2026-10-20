@@ -46,7 +46,7 @@ static UIView *rowIn(UIView *window, NSString *identifier) {
 
 // The way a tap selects the row: its list's own selection where the list takes one, else its control or its
 // accessibility action.
-static void open(UIView *row) {
+static void openRow(UIView *row) {
     UICollectionViewCell *cell = nil;
     for (UIView *v = row; v; v = v.superview) {
         if ([v isKindOfClass:UICollectionViewCell.class]) { cell = (UICollectionViewCell *)v; break; }
@@ -82,7 +82,7 @@ static void openThroughDrawer(UIControl *avatar, NSString *identifier) {
     look = ^{
         UIView *row = rowIn(window, identifier);
         if (row) {
-            open(row);
+            openRow(row);
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kHoldAfter * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ uncover(); });
             weakLook = nil;
             return;
