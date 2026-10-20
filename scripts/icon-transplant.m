@@ -33,7 +33,7 @@ struct sg_keyfmt { uint32_t tag; uint32_t version; uint32_t count; uint32_t attr
 - (instancetype)initWithPath:(NSString *)path forWriting:(BOOL)writing;
 - (BOOL)setAsset:(NSData *)asset forKey:(const void *)key withLength:(unsigned long)length;
 - (void)removeAssetForKey:(const void *)key withLength:(unsigned long)length;
-- (BOOL)setRenditionKey:(const struct sg_keytoken *)key hotSpot:(CGPoint)hotSpot forName:(const char *)name;
+- (void)setRenditionKey:(const struct sg_keytoken *)key hotSpot:(CGPoint)hotSpot forName:(const char *)name;   // answers nothing
 - (BOOL)writeToDiskAndCompact:(BOOL)compact;
 - (void)setRenditionCount:(unsigned int)count;
 - (BOOL)useBitmapIndex;
@@ -188,7 +188,8 @@ int main(int argc, const char *argv[]) {
                 struct sg_keytoken tokens[made.count + 1];
                 for (NSUInteger i = 0; i < made.count; i++) tokens[i] = (struct sg_keytoken){[made[i][0] unsignedShortValue], [made[i][1] unsignedShortValue]};
                 tokens[made.count] = (struct sg_keytoken){0, 0};
-                if (![into setRenditionKey:tokens hotSpot:CGPointZero forName:name.UTF8String]) {
+                [into setRenditionKey:tokens hotSpot:CGPointZero forName:name.UTF8String];
+                if (!tokensOf(facetFor(into, name)).count) {
                     fprintf(stderr, "icon-transplant: %s could not be named in into\n", name.UTF8String);
                     return 4;
                 }
