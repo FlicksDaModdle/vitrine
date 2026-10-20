@@ -270,12 +270,13 @@ static UIScrollView *listOf(UIView *view) {
 static void placeLines(UIView *box) {
     UIView *(^listOfBox)(void) = objc_getAssociatedObject(box, &kBoxKey);
     UIView *list = box.superview && listOfBox ? listOfBox() : nil;
-    if (!list || list.superview != box.superview) return;
-    CGRect frame = list.frame;
-    CGRect row = SGRPlayerTitleRowFrameIn(list.superview);
+    UIView *host = box.superview;
+    if (!list || !host || ![list isDescendantOfView:host]) return;
+    CGRect frame = [host convertRect:list.bounds fromView:list];
+    CGRect row = SGRPlayerTitleRowFrameIn(host);
     if (!CGRectIsNull(row)) frame.size.height = MAX(frame.size.height, CGRectGetMinY(row) - CGRectGetMinY(frame));
     if (!CGRectEqualToRect(box.frame, frame)) box.frame = frame;
-    if ([box.superview.subviews indexOfObject:box] < [box.superview.subviews indexOfObject:list]) [box.superview insertSubview:box aboveSubview:list];
+    if (list.superview == host && [host.subviews indexOfObject:box] < [host.subviews indexOfObject:list]) [host insertSubview:box aboveSubview:list];
     for (UIView *line in box.subviews.copy) {
         UIView *band = SGRPreviewLineBand(line);
         NSValue *room = objc_getAssociatedObject(line, &kRoomKey);
@@ -293,9 +294,13 @@ static void placeLines(UIView *box) {
     }
 }
 
+// The box goes in the player's own list, the one its units scroll in (the cover's unit clips too, a little under the
+// band, and cut the line in half again from the covers' list's parent), above its cells; or by the covers' list.
 static UIView *boxFor(UIView *preview) {
     UIScrollView *list = listOf(preview);
     if (!list.superview) return nil;
+    UIScrollView *outer = listOf(list);
+    UIView *host = outer ?: list.superview;
     UIView *box = objc_getAssociatedObject(list, &kBoxKey);
     if (!box) {
         box = [UIView new];
@@ -309,7 +314,13 @@ static UIView *boxFor(UIView *preview) {
         SGRObserveLayout(list, ^(UIView *v) { if (weakBox) placeLines(weakBox); });
         SGLog(@"redesign player: the lyric line stands over the covers' list (%@ %@)", NSStringFromClass(list.class), NSStringFromCGRect(list.frame));
     }
-    if (box.superview != list.superview) [list.superview insertSubview:box aboveSubview:list];
+    if (box.superview != host) {
+        if (outer) {
+            [outer addSubview:box];
+            box.layer.zPosition = 1000;
+            SGLog(@"redesign player: the lyric line's box is in %@", NSStringFromClass(outer.class));
+        } else [host insertSubview:box aboveSubview:list];
+    }
     return box;
 }
 
