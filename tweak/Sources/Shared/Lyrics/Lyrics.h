@@ -31,6 +31,11 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese);
 // TamilReading.m: Tamil in the spelling its listeners use ("kaadhal", "vandhaan"), the rest of the text
 // as it was; nil when there is no Tamil in it. SGLyricsRomanised reads Tamil through it.
 NSString *SGTamilReading(NSString *text);
+// LyricCard.m: a few of the playing track's lines picked from a list and shared as an image over its cover,
+// with their pronunciation under them if wanted. Available once the track's lines are in.
+@class UIViewController;
+BOOL SGLyricCardAvailable(void);
+void SGLyricCardPresent(UIViewController *from);
 // Whether any of the lines has kana in it.
 @class SGKaraokeLine;
 BOOL SGLyricsLooksJapanese(NSArray<SGKaraokeLine *> *lines);

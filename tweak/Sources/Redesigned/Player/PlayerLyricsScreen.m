@@ -38,7 +38,7 @@ static NSString *timeText(double seconds) {
 
 @implementation SGRLyricsScreenController {
     SGRArtworkField *_field;
-    UIButton *_back, *_play, *_previous, *_next;
+    UIButton *_back, *_share, *_play, *_previous, *_next;
     SGMarqueeLabel *_title, *_artist;
     UIView *_stage;   // the lines' own view: the karaoke view dims every sibling it has
     SGRKaraokeView *_lyrics;
@@ -71,6 +71,9 @@ static NSString *timeText(double seconds) {
 
     _back = glyphButton(@"chevron.down", 20, @"Back to the player", @selector(close), self);
     [self.view addSubview:_back];
+    // A lyric card of the lines (Shared/Lyrics/LyricCard.m).
+    _share = glyphButton(@"square.and.arrow.up", 18, @"Share lyrics", @selector(shareLyrics), self);
+    [self.view addSubview:_share];
     _title = [SGMarqueeLabel new];
     _title.textColor = UIColor.whiteColor;
     _title.font = SGRFont(UIFontTextStyleHeadline, UIFontWeightBold, UIContentSizeCategoryExtraExtraLarge);
@@ -146,7 +149,8 @@ static NSString *timeText(double seconds) {
 
     // The top row: back at the leading edge, the track beside it.
     _back.frame = CGRectMake(left + 6, top, kControlSide, kControlSide);
-    CGFloat textLeft = CGRectGetMaxX(_back.frame) + 4, textWidth = CGRectGetMaxX(safe) - kSide - textLeft;
+    _share.frame = CGRectMake(CGRectGetMaxX(safe) - 6 - kControlSide, top, kControlSide, kControlSide);
+    CGFloat textLeft = CGRectGetMaxX(_back.frame) + 4, textWidth = CGRectGetMinX(_share.frame) - 4 - textLeft;
     CGFloat titleHeight = ceil(_title.font.lineHeight), artistHeight = ceil(_artist.font.lineHeight);
     CGFloat textTop = top + (kControlSide - titleHeight - artistHeight) / 2;
     _title.frame = CGRectMake(textLeft, textTop, textWidth, titleHeight);
@@ -185,6 +189,7 @@ static NSString *timeText(double seconds) {
     [_play setImage:[UIImage systemImageNamed:state.isPaused ? @"play.fill" : @"pause.fill" withConfiguration:
         [UIImageSymbolConfiguration configurationWithPointSize:28 weight:UIImageSymbolWeightBold]] forState:UIControlStateNormal];
     _play.accessibilityLabel = state.isPaused ? @"Play" : @"Pause";
+    _share.hidden = !SGLyricCardAvailable();
     _field.motionHeld = state.isPaused;
     [self tick];
 }
@@ -239,6 +244,10 @@ static NSString *timeText(double seconds) {
     if (!_scrubbing) return;
     _scrubbing = NO;
     SGKaraokeSeek((NSInteger)(_progress.value * 1000));
+}
+
+- (void)shareLyrics {
+    SGLyricCardPresent(self);
 }
 
 - (void)close {

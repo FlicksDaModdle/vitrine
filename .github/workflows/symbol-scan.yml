@@ -18,6 +18,8 @@ jobs:
   scan:
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v5
+
       - uses: levibostian/action-hide-sensitive-inputs@v1
 
       - name: Download IPA
@@ -41,6 +43,9 @@ jobs:
             # Strings, for names the symbol table does not keep.
             strings -n 6 "$bin" | grep -iE "$PATTERN" | sed "s|^|$where str |" >> names.txt || true
           done
+          # Spotify's remote-config flags, with their types and defaults (scripts/extract-flags.py).
+          python3 scripts/extract-flags.py spotify.ipa >/dev/null 2>&1 || true
+          grep -iE "$PATTERN" tweak/Sources/Shared/Flags/SGFlagList.m 2>/dev/null | sed "s|^|flags |" >> names.txt || true
           sort -u names.txt -o names.txt
           echo "$(wc -l < names.txt) names"
           # One annotation per 60 KB, at most 10 (GitHub keeps 10 notices a step).
