@@ -54,3 +54,15 @@ jobs:
             echo "::warning title=Old icon not moved::$(sed -e 's/%/%25/g' icon/log.txt | awk 'BEGIN{ORS="%0A"} {print}')"
           fi
 
+
+      - name: Draw both icons
+        run: |
+          clang -fobjc-arc -framework Foundation -framework CoreGraphics -framework ImageIO scripts/icon-render.m -o icon/icon-render
+          NEW="$(ls -d icon/new/Payload/*.app)"
+          OLD="$(ls -d icon/old/Payload/*.app)"
+          unzip -o -q ipa/spotify.ipa 'Payload/*.app/Assets.car' -d icon/orig
+          ORIG="$(ls -d icon/orig/Payload/*.app)"
+          for pair in "old:$OLD/Assets.car" "orig:$ORIG/Assets.car" "moved:$NEW/Assets.car"; do
+            name="${pair%%:*}"; car="${pair#*:}"
+            icon/icon-render "$car" "icon/$name.png" && echo "::notice title=icon $name::$(base64 -i "icon/$name.png" | tr -d '\n')" || echo "::warning title=icon $name::not drawn"
+          done
