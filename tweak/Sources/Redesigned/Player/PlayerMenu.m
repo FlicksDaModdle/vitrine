@@ -53,6 +53,10 @@ static UIAction *soundMenu(void) {
 
 static NSArray<UIMenuElement *> *playerItems(void) {
     NSMutableArray<UIMenuElement *> *items = [NSMutableArray arrayWithObject:soundMenu()];
+    if (SGRPlayerLyricsAvailable()) {
+        [items addObject:[UIAction actionWithTitle:@"Full-Screen Lyrics" image:symbol(@"quote.bubble") identifier:nil
+                                           handler:^(UIAction *action) { SGRPlayerShowLyricsScreen(); }]];
+    }
     if (SGPlayerMenuOffersAnimatedArtwork()) {
         // Buttons named for what they do, not checkmarks: the HIG's changeable label for a toggled item.
         NSArray<NSArray *> *backgrounds = @[

@@ -126,6 +126,9 @@ void SGRPlayerPaintCover(UIView *stack);
 // until switched off. Shown or put away by hand for the harness.
 #define SGRKeyLyricsLandscape @"spotifyglass.redesign.lyrics.landscape"
 void SGRPlayerShowLandscape(BOOL show);
+// The lyrics on an upright screen of their own, with a back button and small controls (PlayerLyricsScreen.m),
+// from the ⋯ menu or by holding the footer's lyrics glyph.
+void SGRPlayerShowLyricsScreen(void);
 // The playing track's lines came in, or turned out to be none: the landscape screen lays out for it.
 void SGRPlayerLandscapeLinesChanged(void);
 

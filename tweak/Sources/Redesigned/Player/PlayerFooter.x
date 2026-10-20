@@ -93,12 +93,31 @@ void SGRPlayerLyricsChanged(void) {
     else mark();
 }
 
+@interface SGRLyricsHold : NSObject
+- (void)held:(UILongPressGestureRecognizer *)hold;
+@end
+
+@implementation SGRLyricsHold
+- (void)held:(UILongPressGestureRecognizer *)hold {
+    if (hold.state == UIGestureRecognizerStateBegan && SGRPlayerLyricsAvailable()) SGRPlayerShowLyricsScreen();
+}
+@end
+
+static SGRLyricsHold *SGRLyricsHoldTarget(void) {
+    static SGRLyricsHold *target;
+    if (!target) target = [SGRLyricsHold new];
+    return target;
+}
+
 SGRGlyphButton *SGRPlayerLyricsGlyphIn(UIView *host) {
     SGRGlyphButton *glyph = objc_getAssociatedObject(host, &kLyricsGlyphKey);
     if (!glyph) {
         glyph = [SGRGlyphButton buttonWithSymbol:kLyricsSymbol pointSize:kLyricsGlyphSize title:@"Lyrics"];
         glyph.glyph.tintColor = SGRSecondary();
         glyph.onTap = ^{ SGRPlayerToggleLyrics(); };
+        // Held: the lyrics on a screen of their own (PlayerLyricsScreen.m).
+        UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc] initWithTarget:SGRLyricsHoldTarget() action:@selector(held:)];
+        [glyph addGestureRecognizer:hold];
         objc_setAssociatedObject(host, &kLyricsGlyphKey, glyph, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
     if (glyph.superview != host) [host addSubview:glyph];
