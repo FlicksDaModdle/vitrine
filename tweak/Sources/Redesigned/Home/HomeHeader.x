@@ -25,6 +25,7 @@
 // Tries at finding the tab's name before settling for the English one: a miss walks the window.
 static const NSUInteger kTitleTries = 8;
 
+static char kSearchTabKey;
 static char kTitleKey, kTabKey, kPillGlassKey, kGlassKey, kButtonsKey, kConnectKey, kTintKey, kWatchKey;
 // The title row's pill: a glass capsule around the filter button and the avatar, 44pt tall, as the reference has
 // it; the menu drives Spotify's own filter chips, hidden in the stack, and offers the device picker when Spotify
@@ -37,6 +38,7 @@ static const CGFloat kTintHeight = 480;
 // outside a button goes through to the avatar under them.
 @interface SGRHomePillButtons : UIView
 @property (nonatomic, strong) UIButton *filter;
+@property (nonatomic, strong) UIButton *search;    // to the Search tab, with Search in the pill on
 @property (nonatomic, strong) UIButton *profile;   // over the avatar: its menu (HomeProfileMenu.m)
 @end
 
@@ -202,6 +204,12 @@ static SGRHomePillButtons *buttonsIn(UIView *header) {
         }]]];
         buttons.filter.showsMenuAsPrimaryAction = YES;
         [buttons addSubview:buttons.filter];
+        buttons.search = pillButton(@"magnifyingglass", @"Search");
+        [buttons.search addAction:[UIAction actionWithHandler:^(UIAction *action) {
+            UIView *tab = SGRFindByIdentifier(sg_header.window, @"TabBar.Item.Search", &kSearchTabKey);
+            if (tab) SGRActivate(tab);
+        }] forControlEvents:UIControlEventTouchUpInside];
+        [buttons addSubview:buttons.search];
         buttons.profile = [SGRAvatarMenuButton buttonWithType:UIButtonTypeCustom];
         buttons.profile.accessibilityLabel = @"Profile";
         buttons.profile.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
@@ -256,7 +264,8 @@ static CGFloat layoutPill(UIView *header, UIStackView *stack, UIView *face) {
     SGRHomePillButtons *buttons = buttonsIn(header);
     UIView *glass = glassIn(header);
     CGRect faceFrame = face ? facePlace(stack, face) : CGRectZero;
-    CGFloat width = kPillPad + kPillButton + (face ? faceFrame.size.width + kPillPad * 2 : kPillPad);
+    BOOL search = SGEnabled(SGRKeyHomePillSearch);
+    CGFloat width = kPillPad + kPillButton * (search ? 2 : 1) + (face ? faceFrame.size.width + kPillPad * 2 : kPillPad);
     CGFloat maxX = face ? CGRectGetMaxX(faceFrame) + kPillPad : header.bounds.size.width - SGRSideMargin;
     CGFloat midY = face ? CGRectGetMidY(faceFrame) : CGRectGetMidY(untransformed(stack));
     CGRect pill = CGRectMake(round(maxX - width), round(midY - kPillHeight / 2), width, kPillHeight);
@@ -264,6 +273,9 @@ static CGFloat layoutPill(UIView *header, UIStackView *stack, UIView *face) {
     place(buttons, pill);
     CGRect filter = CGRectMake(kPillPad, 0, kPillButton, kPillHeight);
     if (!CGRectEqualToRect(buttons.filter.frame, filter)) buttons.filter.frame = filter;
+    buttons.search.hidden = !search;
+    CGRect searchFrame = CGRectOffset(filter, kPillButton, 0);
+    if (search && !CGRectEqualToRect(buttons.search.frame, searchFrame)) buttons.search.frame = searchFrame;
     // Over the avatar, taking its taps for the menu; off, the avatar under it opens the drawer as Spotify's does.
     buttons.profile.hidden = !face || !SGEnabled(SGRKeyHomeProfileMenu);
     if (face) {

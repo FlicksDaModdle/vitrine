@@ -245,7 +245,26 @@ void SGRHomeTintForCover(UIImage *image, void (^completion)(UIColor *color)) {
     }];
 }
 
+// A probe for compact tiles, nothing more: the first tile's way up to the list that lays the grid out, each view's
+// class and frame, and the list's layout, so a shorter tile can be laid out with the grid rather than against it.
+static void probeGrid(UIView *tile) {
+    static BOOL logged;
+    if (logged || !tile.window) return;
+    logged = YES;
+    NSMutableArray<NSString *> *chain = [NSMutableArray array];
+    for (UIView *v = tile; v && chain.count < 14; v = v.superview) {
+        [chain addObject:[NSString stringWithFormat:@"%@ %@", NSStringFromClass(v.class), NSStringFromCGRect(v.frame)]];
+        if ([v isKindOfClass:UICollectionView.class]) {
+            UICollectionViewLayout *layout = ((UICollectionView *)v).collectionViewLayout;
+            [chain addObject:[NSString stringWithFormat:@"layout %@", NSStringFromClass(layout.class)]];
+            break;
+        }
+    }
+    SGLog(@"tiles probe: %@", [chain componentsJoinedByString:@" < "]);
+}
+
 void SGRHomeStyleTile(UIView *tile) {
+    probeGrid(tile);
     CFTimeInterval began = SGRHomeProbeBegin();
     UIImageView *cover = partsOf(tile).cover;
     if (!cover) return;
