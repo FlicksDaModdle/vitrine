@@ -272,6 +272,14 @@ BOOL SGRPlayerLyricsAvailable(void) {
     return track != nil && SGKaraokeLinesForTrack(track) != nil;
 }
 
+UIView *SGRPlayerHostView(void) {
+    return sg_host.window ? sg_host : nil;
+}
+
+UIView *SGRPlayerLyricsOverlayView(void) {
+    return sg_host ? objc_getAssociatedObject(sg_host, &kOverlayKey) : nil;
+}
+
 CGRect SGRPlayerTitleRowFrameIn(UIView *host) {
     UIView *info = sg_info.viewIfLoaded;
     return info.window && host.window ? untransformed(info, host) : CGRectNull;

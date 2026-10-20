@@ -276,7 +276,11 @@ static void placeLines(UIView *box) {
     CGRect row = SGRPlayerTitleRowFrameIn(host);
     if (!CGRectIsNull(row)) frame.size.height = MAX(frame.size.height, CGRectGetMinY(row) - CGRectGetMinY(frame));
     if (!CGRectEqualToRect(box.frame, frame)) box.frame = frame;
-    if (list.superview == host && [host.subviews indexOfObject:box] < [host.subviews indexOfObject:list]) [host insertSubview:box aboveSubview:list];
+    // Over everything of the player's, the gradients and the title's unit included, under the lyrics' overlay.
+    UIView *overlay = SGRPlayerLyricsOverlayView();
+    if (overlay.superview == host) {
+        if ([host.subviews indexOfObject:box] != [host.subviews indexOfObject:overlay] - 1) [host insertSubview:box belowSubview:overlay];
+    } else if (host.subviews.lastObject != box) [host bringSubviewToFront:box];
     for (UIView *line in box.subviews.copy) {
         UIView *band = SGRPreviewLineBand(line);
         NSValue *room = objc_getAssociatedObject(line, &kRoomKey);
@@ -300,7 +304,8 @@ static UIView *boxFor(UIView *preview) {
     UIScrollView *list = listOf(preview);
     if (!list.superview) return nil;
     UIScrollView *outer = listOf(list);
-    UIView *host = outer ?: list.superview;
+    UIView *host = SGRPlayerHostView();
+    if (!host || ![list isDescendantOfView:host]) return nil;
     UIView *box = objc_getAssociatedObject(list, &kBoxKey);
     if (!box) {
         box = [UIView new];
@@ -312,14 +317,13 @@ static UIView *boxFor(UIView *preview) {
         objc_setAssociatedObject(box, &kBoxKey, ^UIView *{ return weakList; }, OBJC_ASSOCIATION_COPY_NONATOMIC);
         __weak UIView *weakBox = box;
         SGRObserveLayout(list, ^(UIView *v) { if (weakBox) placeLines(weakBox); });
+        // The player's own list scrolls the cover away with its cards: the box follows it there.
+        if (outer && [outer isDescendantOfView:host]) SGRObserveLayout(outer, ^(UIView *v) { if (weakBox) placeLines(weakBox); });
         SGLog(@"redesign player: the lyric line stands over the covers' list (%@ %@)", NSStringFromClass(list.class), NSStringFromCGRect(list.frame));
     }
     if (box.superview != host) {
-        if (outer) {
-            [outer addSubview:box];
-            box.layer.zPosition = 1000;
-            SGLog(@"redesign player: the lyric line's box is in %@", NSStringFromClass(outer.class));
-        } else [host insertSubview:box aboveSubview:list];
+        [host addSubview:box];
+        placeLines(box);
     }
     return box;
 }

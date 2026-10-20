@@ -150,6 +150,9 @@ UIView *SGRPreviewLineBand(UIView *line);
 CGFloat SGRPreviewShiftAbove(UIView *view);
 // Where the title row (the track's name and artist) stands, untransformed, in `host`; CGRectNull when it is not up.
 CGRect SGRPlayerTitleRowFrameIn(UIView *host);
+// The player's own view, which the lyrics' overlay is on top of (PlayerLyrics.x), and that overlay; nil when none.
+UIView *SGRPlayerHostView(void);
+UIView *SGRPlayerLyricsOverlayView(void);
 // The player's own lines came up or went: the line under the cover, out of sight under them, stops drawing.
 void SGRPreviewLineLyricsChanged(void);
 BOOL SGRPreviewLineIsOurs(UIView *view);
