@@ -36,7 +36,6 @@ CGFloat SGRHomeHeaderGap(void);
 #define SGRKeyHomeProfileMenu @"spotifyglass.redesign.home.profileMenu"
 // A search button in the title row's pill, between the filter and the avatar, that goes to the Search tab. On until
 // switched off.
-#define SGRKeyHomePillSearch @"spotifyglass.redesign.home.pillSearch"
 NSArray<UIMenuElement *> *SGRHomeProfileMenuElements(UIView *face);
 // A clear button over the avatar whose menu (SGRHomeProfileMenuElements) grows out of `source` and shrinks back into it.
 @interface SGRAvatarMenuButton : UIButton

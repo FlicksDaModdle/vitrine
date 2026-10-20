@@ -142,6 +142,10 @@ void SGRShowLyricsSizePanel(UIView *from, NSInteger onlyPlace);
 UIView *SGRPreviewLineMake(void);
 // How far past the bottom of Spotify's preview the line's band reaches.
 CGFloat SGRPreviewLineReach(void);
+void SGRPreviewLineSetLift(UIView *line, CGFloat lift);
+CGFloat SGRPreviewLineRest(void);
+// How far the cover was moved down for the room under the lyric line (PlayerLyricsPreviewTap.x), for a view inside it.
+CGFloat SGRPreviewShiftAbove(UIView *view);
 // Where the title row (the track's name and artist) stands, untransformed, in `host`; CGRectNull when it is not up.
 CGRect SGRPlayerTitleRowFrameIn(UIView *host);
 // The player's own lines came up or went: the line under the cover, out of sight under them, stops drawing.

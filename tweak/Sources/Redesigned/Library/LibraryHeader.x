@@ -99,12 +99,13 @@ static CGFloat placeTrailing(UIView *header, NSArray<UIView *> *controls) {
     for (UIView *control in controls.reverseObjectEnumerator) {
         CGFloat width = control.bounds.size.width;
         BOOL face = isFace(control);
-        if (face && control == controls.lastObject) right = header.bounds.size.width - SGRSideMargin;
+        // Its center where Search's is: a 32 pt picture SGRSideMargin from the edge, whatever the face view's width.
+        if (face && control == controls.lastObject) right = header.bounds.size.width - SGRSideMargin - MAX(0, (width - 32) / 2);
         // The center is where Auto Layout put the control, whatever transform is on it; its frame is not.
         CGFloat natural = [control.superview convertPoint:CGPointZero toView:header].x + control.center.x - width / 2;
         CGAffineTransform move = CGAffineTransformMakeTranslation(right - width - natural, 0);
         if (!CGAffineTransformEqualToTransform(control.transform, move)) control.transform = move;
-        right -= width + (face ? kFacePillRoom : 0);
+        right = face ? right - width + MAX(0, (width - 32) / 2) - kFacePillRoom : right - width;
     }
     return right;
 }

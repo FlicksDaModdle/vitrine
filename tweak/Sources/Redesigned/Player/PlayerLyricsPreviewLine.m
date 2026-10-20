@@ -10,6 +10,7 @@
 #import "Core/SGCore.h"
 #import "Redesigned/Lyrics/LyricsLook.h"
 #import "Redesigned/Lyrics/SGRKaraokeView.h"
+#import "Shared/Lyrics/Lyrics.h"
 #import "Player.h"
 
 // The share of its height the karaoke view rests the sung line at (SGRKaraokeView.m's kAnchor).
@@ -28,6 +29,8 @@ static NSHashTable<UIView *> *sg_lines;
 
 @implementation SGRPreviewLineView {
     SGRKaraokeView *_lyrics;
+@public
+    CGFloat _lift;
 }
 
 // Out of the window while the player's own lines are up, so its display link and its layout stop with it.
@@ -74,8 +77,7 @@ static NSHashTable<UIView *> *sg_lines;
     CGSize band = self.bounds.size;
     if (band.height <= 0) return;
     // The sung line a little below the cover rather than against it, and the band under it for the line to come.
-    // In a band taller than Spotify's (it runs to the title row), a little lower, so the room is shared above and under.
-    CGFloat top = MAX(MIN(kTopRoom, band.height * 0.2), round(band.height * 0.16));
+    CGFloat top = MIN(kTopRoom, band.height * 0.2) + _lift;
     CGFloat height = ceil((band.height - top) / (1 - kKaraokeAnchor));
     CGRect frame = CGRectMake(0, top - round(height * kKaraokeAnchor), band.width, height);
     if (!CGRectEqualToRect(_lyrics.frame, frame)) _lyrics.frame = frame;
@@ -93,6 +95,23 @@ static NSHashTable<UIView *> *sg_lines;
 void SGRPreviewLineLyricsChanged(void) {
     BOOL open = SGRPlayerLyricsOpen();
     for (SGRPreviewLineView *line in sg_lines.allObjects) [line rest:open];
+}
+
+void SGRPreviewLineSetLift(UIView *line, CGFloat lift) {
+    if (![line isKindOfClass:SGRPreviewLineView.class]) return;
+    SGRPreviewLineView *view = (SGRPreviewLineView *)line;
+    if (fabs(view->_lift - lift) < 0.5) return;
+    view->_lift = lift;
+    [view setNeedsLayout];
+}
+
+// The sung line's bottom at rest from the preview's top: the room over it and the words, with the romanized line
+// under them when Romanized lyrics show both.
+CGFloat SGRPreviewLineRest(void) {
+    CGFloat chosen = SGRLyricsSizeFor(SGRLyricsPlacePreview);
+    CGFloat size = chosen > 0 ? chosen : MIN(SGRLyricsLookNow().size, kMaxFont);
+    BOOL both = SGFlag(SGKeyLyricsRomanised, NO) && SGInt(SGKeyLyricsRomanisedMode, 0) != 1;
+    return kTopRoom + ceil(size * 1.3 * (both ? 1.8 : 1));
 }
 
 CGFloat SGRPreviewLineReach(void) {

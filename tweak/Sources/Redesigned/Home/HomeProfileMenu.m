@@ -235,7 +235,7 @@ NSArray<UIMenuElement *> *SGRHomeProfileMenuElements(UIView *face) {
 @end
 
 static char kPillGlassKey, kPillShapeKey, kPillButtonKey;
-static const CGFloat kPillPad = 6;
+static const CGFloat kPillPad = 6, kPillAvatar = 34;
 
 void SGRProfilePillAround(UIView *face) {
     UIView *host = face.superview;
@@ -267,7 +267,9 @@ void SGRProfilePillAround(UIView *face) {
     button.hidden = NO;
     // face.frame carries the move a page gives the avatar by transform (Library), so the pill follows it.
     CGRect avatar = face.frame;
-    CGFloat side = MAX(avatar.size.width, avatar.size.height) + 2 * kPillPad;
+    // The picture's size, not the face view's: Library's face view is larger than Search's around the same 32 pt
+    // picture, and gave a larger pill.
+    CGFloat side = MIN(MAX(avatar.size.width, avatar.size.height), kPillAvatar) + 2 * kPillPad;
     CGRect pill = CGRectMake(round(CGRectGetMidX(avatar) - side / 2), round(CGRectGetMidY(avatar) - side / 2), side, side);
     if (!CGRectEqualToRect(glass.frame, pill)) glass.frame = pill;
     SGRGlassCapsuleInside(glass, &kPillShapeKey, pill.size, NO);

@@ -104,7 +104,8 @@ CGRect SGRPlayerArtworkAreaIn(UIView *host) {
     // (01.txt:33-36, CoverArtCellImpl > UIView {0, 110, 402, 466.67} > UIView {24, 8, ...} > the tilt view).
     for (UIView *v = tilt.superview; v; v = v.superview) {
         if (v == host) break;
-        if (v.bounds.size.width >= host.bounds.size.width - 1) return [host convertRect:v.bounds fromView:v];
+        // Measured where the band stands unmoved: the cover moves down for the lyric line's room only while it shows.
+        if (v.bounds.size.width >= host.bounds.size.width - 1) return CGRectOffset([host convertRect:v.bounds fromView:v], 0, -SGRPreviewShiftAbove(v));
     }
     return CGRectNull;
 }

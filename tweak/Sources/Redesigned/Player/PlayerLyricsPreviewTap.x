@@ -18,7 +18,7 @@
 #import "Shared/Player/PlayerSettings.h"
 #import "Player.h"
 
-static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey;
+static char kTapKey, kOriginalKey, kShownKey, kLineKey, kHiddenKey, kShiftKey;
 static Class sg_previewClass;
 static NSHashTable<UILabel *> *sg_labels;
 static BOOL sg_setting;   // a text of ours going in, which the hooks pass through
@@ -181,6 +181,80 @@ static BOOL insidePreviewClass(UIView *view) {
     return NO;
 }
 
+#pragma mark - the room under the line
+
+// Spotify keeps a 100 pt band under the cover for its preview and the Switch to video chip's room over the title, and
+// the mod's line uses the top of it: one sung line left a blank of about 100 pt over the title. With the chip hidden
+// the cover and the line move down by most of that blank (onto the space over the cover, which was all but none
+// while playing), the line sits a little lower in what is left, and about kUnder stays between the line and the title.
+static const CGFloat kUnder = 30, kMostShift = 56;
+
+static BOOL holdsTilt(UIView *view, int depth) {
+    static Class tiltClass;
+    if (!tiltClass) tiltClass = NSClassFromString(@"_TtC35CreativeWorkCommons_CoverArtTiltKit16CoverArtTiltView");
+    if ([view isKindOfClass:tiltClass]) return YES;
+    if (depth <= 0) return NO;
+    for (UIView *sub in view.subviews) if (holdsTilt(sub, depth - 1)) return YES;
+    return NO;
+}
+
+// The view holding both the cover and the preview, which moves them together; a cell's content view, since a list
+// sets its cells' transforms.
+static UIView *coverGroupOf(UIView *preview) {
+    int up = 0;
+    for (UIView *v = preview.superview; v && up < 6; v = v.superview, up++) {
+        if ([v isKindOfClass:UIScrollView.class]) return nil;
+        if (!holdsTilt(v, 3)) continue;
+        return [v isKindOfClass:UICollectionViewCell.class] ? ((UICollectionViewCell *)v).contentView : v;
+    }
+    return nil;
+}
+
+CGFloat SGRPreviewShiftAbove(UIView *view) {
+    for (UIView *v = view; v; v = v.superview) {
+        NSNumber *shift = objc_getAssociatedObject(v, &kShiftKey);
+        if (shift) return shift.doubleValue;
+    }
+    return 0;
+}
+
+static void setShift(UIView *group, CGFloat shift) {
+    if (!group) return;
+    objc_setAssociatedObject(group, &kShiftKey, shift ? @(shift) : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    CGAffineTransform move = CGAffineTransformMakeTranslation(0, shift);
+    if (!CGAffineTransformEqualToTransform(group.transform, move)) group.transform = move;
+}
+
+// The line's frame in the preview, and how much lower than its rest the sung line sits in it.
+static CGRect placeRoom(UIView *view, CGFloat *lift) {
+    CGRect bounds = view.bounds;
+    *lift = 0;
+    UIView *group = coverGroupOf(view);
+    CGFloat shift = group ? group.transform.ty : 0;
+    CGRect row = SGHidden(SGKeyHideVideoSwitch) ? SGRPlayerTitleRowFrameIn(view) : CGRectNull;
+    // Where the title row would be in the preview with no move on the cover.
+    CGFloat rowTop = CGRectIsNull(row) ? 0 : CGRectGetMinY(row) + shift;
+    if (CGRectIsNull(row) || rowTop <= CGRectGetMaxY(bounds) || rowTop > CGRectGetMaxY(bounds) + 220) {
+        if (!SGRPlayerLyricsOpen()) setShift(group, 0);
+        bounds.size.height += SGRPreviewLineReach();
+        return bounds;
+    }
+    CGFloat surplus = rowTop - SGRPreviewLineRest() - kUnder;
+    CGFloat newShift = surplus > 0 ? round(MIN(surplus * 0.6, kMostShift)) : 0;
+    // While the lines are up the cover stays where it is: the thumbnail is measured from it.
+    if (SGRPlayerLyricsOpen()) newShift = shift;
+    else setShift(group, newShift);
+    *lift = surplus > newShift ? round((surplus - newShift) * 0.4) : 0;
+    bounds.size.height = MAX(bounds.size.height, rowTop - newShift - 4 - CGRectGetMinY(bounds));
+    static BOOL logged;
+    if (!logged) {
+        logged = YES;
+        SGLog(@"redesign player: the title row %.0f pt under the preview's top, the cover moved down %.0f (%@), the line %.0f lower, %.0f pt tall",
+              rowTop, newShift, group ? NSStringFromClass(group.class) : @"no group", *lift, bounds.size.height);
+    }
+    return bounds;
+}
+
 static void previewLaidOut(UIView *view) {
     CGSize size = view.bounds.size;
     if (!view.window || size.width < kPreviewMinWidth || size.height > kPreviewMaxHeight || size.height < 10) return;
@@ -207,26 +281,22 @@ static void previewLaidOut(UIView *view) {
         // Into the room under the preview, which Spotify leaves empty above the chip row; the preview lets it show.
         // With Switch to video hidden, its room over the title is empty too, so the line runs down to the title row and
         // the lines to come fill what was a blank band (the sung line sits lower in a taller band, PlayerLyricsPreviewLine.m).
-        CGRect bounds = view.bounds;
-        CGFloat bottom = CGRectGetMaxY(bounds) + SGRPreviewLineReach();
-        CGRect row = SGHidden(SGKeyHideVideoSwitch) ? SGRPlayerTitleRowFrameIn(view) : CGRectNull;
-        CGFloat rowTop = CGRectIsNull(row) ? 0 : CGRectGetMinY(row) - 4;
-        if (rowTop > CGRectGetMaxY(bounds) && rowTop < CGRectGetMaxY(bounds) + 200) bottom = rowTop;
-        bounds.size.height = bottom - CGRectGetMinY(bounds);
+        CGFloat lift = 0;
+        CGRect bounds = placeRoom(view, &lift);
         if (!CGRectEqualToRect(line.frame, bounds)) line.frame = bounds;
+        SGRPreviewLineSetLift(line, lift);
         // Unclipped up to the cell the cover is in, not past it: a scroll view clipping is the player's own.
         int up = 0;
         for (UIView *v = view; v && up < 5 && ![v isKindOfClass:UIScrollView.class]; v = v.superview, up++) {
             if (v.clipsToBounds) v.clipsToBounds = NO;
             if ([v isKindOfClass:UICollectionViewCell.class] || [v isKindOfClass:UITableViewCell.class]) break;
         }
-        static BOOL roomLogged;
-        if (!roomLogged && !CGRectIsNull(row)) {
-            roomLogged = YES;
-            SGLog(@"redesign player: the lyric preview line runs %.0f pt, to the title row at %.0f", bounds.size.height, CGRectGetMinY(row));
-        }
+
         if (line.superview != view) [view addSubview:line];
-    } else [line removeFromSuperview];
+    } else {
+        [line removeFromSuperview];
+        setShift(coverGroupOf(view), 0);
+    }
     for (UIView *sub in view.subviews) {
         if (sub == line || [sub isKindOfClass:SGRPreviewTap.class]) continue;
         if (own && sub.alpha != 0) {
