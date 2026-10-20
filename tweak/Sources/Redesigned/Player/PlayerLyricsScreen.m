@@ -1,6 +1,7 @@
 // Player redesign: the lyrics on a screen of their own, upright. The lines fill it over the player's Fluid
 // artwork, with the track and a back button at the top and a slim progress bar with previous, play and next
-// at the bottom. The back button (or VoiceOver's escape) returns to the player as it was.
+// at the bottom. The back button (or VoiceOver's escape) returns to the player as it was. The buttons at the top sit
+// on glass circles as the player's header ones do, and the bar and its controls on one glass capsule (Kit/SGRGlass.h).
 //
 // Opened from the player's ⋯ menu (Full-Screen Lyrics, PlayerMenu.m) or by holding the footer's lyrics
 // glyph (PlayerFooter.x), whenever the playing track has lines. It is the landscape screen's portrait
@@ -16,6 +17,8 @@
 static const CGFloat kSide = 20, kControlSide = 44, kBarGap = 8, kTimeHeight = 16;
 
 static __weak UIViewController *sg_screen;
+static char kBackGlassKey, kShareGlassKey, kDockGlassKey;
+static const CGFloat kDockPad = 12, kDockSide = 12;
 
 @interface SGRLyricsScreenController : UIViewController <SGPlayerStateObserver>
 @end
@@ -42,6 +45,7 @@ static NSString *timeText(double seconds) {
     SGMarqueeLabel *_title, *_artist;
     UIView *_stage;   // the lines' own view: the karaoke view dims every sibling it has
     SGRKaraokeView *_lyrics;
+    UIView *_dock;   // the glass under the bar and the controls; they are its siblings, above it
     UISlider *_progress;
     UILabel *_elapsed, *_remaining;
     NSTimer *_clock;
@@ -89,6 +93,10 @@ static NSString *timeText(double seconds) {
     _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _lyrics.keepsSing = YES;
     [_stage addSubview:_lyrics];
+
+    _dock = [UIView new];
+    _dock.userInteractionEnabled = NO;
+    [self.view addSubview:_dock];
 
     _progress = [UISlider new];
     _progress.minimumTrackTintColor = UIColor.whiteColor;
@@ -158,18 +166,26 @@ static NSString *timeText(double seconds) {
     CGFloat headerBottom = top + MAX(kControlSide, titleHeight + artistHeight) + kBarGap;
 
     // The bottom: the controls on the safe edge, the bar and its times over them.
-    CGFloat bottom = CGRectGetMaxY(safe) - 4;
+    CGFloat bottom = CGRectGetMaxY(safe) - 10;
     CGFloat controlsTop = bottom - kControlSide;
     CGFloat mid = CGRectGetMidX(safe);
     _play.frame = CGRectMake(mid - kControlSide / 2, controlsTop, kControlSide, kControlSide);
     _previous.frame = CGRectMake(mid - kControlSide * 2.2, controlsTop, kControlSide, kControlSide);
     _next.frame = CGRectMake(mid + kControlSide * 1.2, controlsTop, kControlSide, kControlSide);
     CGFloat timesTop = controlsTop - kTimeHeight;
-    _elapsed.frame = CGRectMake(left + kSide, timesTop, 60, kTimeHeight);
-    _remaining.frame = CGRectMake(CGRectGetMaxX(safe) - kSide - 60, timesTop, 60, kTimeHeight);
-    _progress.frame = CGRectMake(left + kSide, timesTop - 28, width - 2 * kSide, 28);
+    CGFloat inset = kSide + kDockSide;
+    _elapsed.frame = CGRectMake(left + inset, timesTop, 60, kTimeHeight);
+    _remaining.frame = CGRectMake(CGRectGetMaxX(safe) - inset - 60, timesTop, 60, kTimeHeight);
+    _progress.frame = CGRectMake(left + inset, timesTop - 28, width - 2 * inset, 28);
 
-    CGFloat linesBottom = CGRectGetMinY(_progress.frame) - kBarGap;
+    // The glass: circles behind the two buttons at the top, a capsule around the bar and the controls.
+    SGRGlassInside(_back, &kBackGlassKey, kControlSide);
+    SGRGlassInside(_share, &kShareGlassKey, kControlSide);
+    CGFloat dockTop = CGRectGetMinY(_progress.frame) - kDockPad;
+    _dock.frame = CGRectMake(left + kDockSide, dockTop, width - 2 * kDockSide, CGRectGetMaxY(_play.frame) + kDockPad / 2 - dockTop);
+    SGRGlassCapsuleInside(_dock, &kDockGlassKey, _dock.bounds.size, NO);
+
+    CGFloat linesBottom = CGRectGetMinY(_dock.frame) - kBarGap;
     _stage.frame = CGRectMake(CGRectGetMinX(self.view.bounds), headerBottom, self.view.bounds.size.width, linesBottom - headerBottom);
     _lyrics.frame = _stage.bounds;
 }

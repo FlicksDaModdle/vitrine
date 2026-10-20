@@ -129,7 +129,8 @@ void SGRPlayerShowLandscape(BOOL show);
 // The lyrics on an upright screen of their own, with a back button and small controls (PlayerLyricsScreen.m),
 // from the ⋯ menu or by holding the footer's lyrics glyph.
 void SGRPlayerShowLyricsScreen(void);
-// A tap on Spotify's lyric preview under the cover opens that screen (PlayerLyricsPreviewTap.x). On until
+// A tap on Spotify's lyric preview under the cover brings the lyrics into the player, as the lyrics glyph does
+// (PlayerLyricsPreviewTap.x). On until
 // switched off.
 #define SGRKeyLyricsPreviewOpensScreen @"spotifyglass.redesign.lyrics.previewOpensScreen"
 // The playing track's lines came in, or turned out to be none: the landscape screen lays out for it.

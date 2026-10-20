@@ -119,7 +119,7 @@ static UIViewController *lyricsPage(void) {
             SGSection(@"Display", @[SGRLyricsTextSizesRow(), SGLyricsWordTimingRow(), SGLyricsRomanisedRow(), SGLyricsRomanisedModeRow(),
                 SGSwitchRow(@"Hide the controls", @"A few seconds after the last touch, the lyrics take the whole player", SGRKeyLyricsAutoHide),
                 SGSwitchRow(@"Landscape lyrics", @"Turn the phone with the lyrics open", SGRKeyLyricsLandscape),
-                SGSwitchRow(@"Tap preview for full screen", @"The line under the cover opens the lyrics on their own screen", SGRKeyLyricsPreviewOpensScreen)]),
+                SGSwitchRow(@"Tap preview for lyrics", @"The line under the cover opens the lyrics in the player", SGRKeyLyricsPreviewOpensScreen)]),
             timing,
             SGSection(@"Translation", @[SGLyricsTranslationLanguageRow(), SGTranslateEverySongRow(), SGGeminiKeyRow(), SGSavedTranslationsRow()]),
             SGSection(nil, @[SGLyricsMeaningsRow()]),
