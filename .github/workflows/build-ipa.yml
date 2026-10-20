@@ -86,9 +86,16 @@ jobs:
 
       # scripts/pipeline.sh hands BUNDLE_ID to cyan -b, which renames the app and every extension in
       # PlugIns/ (com.spotify.client.* -> <bundle id>.*), the Safari extension included.
-      - run: make release
+      - name: make release
         env:
           BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -o pipefail
+          make release 2>&1 | tee build.log || {
+            # The compiler's errors as annotations, so they show on the run's page without opening the log.
+            grep -E "error:|Error [0-9]" build.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v5
         if: inputs.upload_method != 'filebin'
