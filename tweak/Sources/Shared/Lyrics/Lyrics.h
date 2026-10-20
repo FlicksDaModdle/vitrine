@@ -39,6 +39,9 @@ NSString *SGTamilReading(NSString *text);
 // Romanized lyrics: the Latin letters with Show romanized on Instead of the original, the line otherwise. And what
 // goes under it where there is room for a second line: the Latin letters with Under the original, else nil.
 NSString *SGLyricsShownLine(NSString *text);
+// OfflineLyrics.m: a song's kept lines written to the phone, read back when it plays again without them.
+@class SGKaraokeLine;
+void SGOfflineLyricsSave(NSString *track, NSArray<SGKaraokeLine *> *lines);
 NSString *SGLyricsLineUnder(NSString *text);
 // IndicReading.m: the same for Hindi, Marathi, Bengali, Punjabi, Gujarati, Odia, Telugu, Kannada and Malayalam.
 NSString *SGIndicReading(NSString *text);
