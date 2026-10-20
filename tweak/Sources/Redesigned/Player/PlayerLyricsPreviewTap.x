@@ -101,10 +101,16 @@ static void keep(UILabel *label, id original) {
 
 %hook UILabel
 - (void)setText:(NSString *)text {
-    if (sg_setting || !text.length || !inPreview((UIView *)self)) { %orig; return; }
+    if (sg_setting || !text.length || !inPreview((UIView *)self)) {
+        %orig;
+        return;
+    }
     keep(self, text);
     NSString *latin = romanisedLine(text);
-    if (!latin) { %orig; return; }
+    if (!latin) {
+        %orig;
+        return;
+    }
     sg_setting = YES;
     if (instead()) [self setText:latin];
     else {
@@ -117,10 +123,16 @@ static void keep(UILabel *label, id original) {
 }
 
 - (void)setAttributedText:(NSAttributedString *)text {
-    if (sg_setting || !text.length || !inPreview((UIView *)self)) { %orig; return; }
+    if (sg_setting || !text.length || !inPreview((UIView *)self)) {
+        %orig;
+        return;
+    }
     keep(self, text);
     NSString *latin = romanisedLine(text.string);
-    if (!latin) { %orig; return; }
+    if (!latin) {
+        %orig;
+        return;
+    }
     if (!instead()) self.numberOfLines = 0;
     sg_setting = YES;
     [self setAttributedText:shownAttributed(text, latin)];
