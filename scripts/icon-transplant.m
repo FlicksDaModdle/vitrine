@@ -32,7 +32,7 @@ struct sg_keyfmt { uint32_t tag; uint32_t version; uint32_t count; uint32_t attr
 @interface CUIMutableCommonAssetStorage : CUICommonAssetStorage
 - (instancetype)initWithPath:(NSString *)path forWriting:(BOOL)writing;
 - (BOOL)setAsset:(NSData *)asset forKey:(const void *)key withLength:(unsigned long)length;
-- (void)removeAssetForKey:(id)key;
+- (void)removeAssetForKey:(const void *)key withLength:(unsigned long)length;
 - (BOOL)setRenditionKey:(const struct sg_keytoken *)key hotSpot:(CGPoint)hotSpot forName:(const char *)name;
 - (BOOL)writeToDiskAndCompact:(BOOL)compact;
 - (void)setRenditionCount:(unsigned int)count;
@@ -155,8 +155,10 @@ int main(int argc, const char *argv[]) {
             }
             if (intoFacet.count) {
                 for (id key in intoKeys) {
-                    if (!matches(attributesOf(key), intoFacet)) continue;
-                    [into removeAssetForKey:key];
+                    NSDictionary *attributes = attributesOf(key);
+                    if (!matches(attributes, intoFacet)) continue;
+                    NSData *raw = keyFrom(attributes, intoFormat);
+                    [into removeAssetForKey:raw.bytes withLength:raw.length];
                     removed++;
                 }
             } else {
@@ -200,7 +202,8 @@ int main(int argc, const char *argv[]) {
                     if (!known && [attributes[attribute] unsignedShortValue]) printf("  %s: attribute %u = %u has no place in into's keys\n",
                                                                                     name.UTF8String, attribute.unsignedIntValue, [attributes[attribute] unsignedShortValue]);
                 }
-                NSData *asset = [from assetForKey:key];
+                // The storage takes keys as its raw bytes, in its own format.
+                NSData *asset = [from assetForKey:keyFrom(attributesOf(key), fromFormat)];
                 NSData *raw = keyFrom(attributes, intoFormat);
                 if (asset && [into setAsset:asset forKey:raw.bytes withLength:raw.length]) {
                     copied++;
