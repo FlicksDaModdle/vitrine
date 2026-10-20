@@ -61,11 +61,12 @@ static BOOL sg_setting;   // a text of ours going in, which the hooks pass throu
 
 #pragma mark - the text
 
+static BOOL isPreviewClass(UIView *view);
 static BOOL inPreview(UIView *view) {
     if (!sg_previewClass) return NO;
     UIView *v = view.superview;
     for (int up = 0; v && up < 10; up++, v = v.superview) {
-        if ([v isKindOfClass:sg_previewClass]) return YES;
+        if (isPreviewClass(v)) return YES;
     }
     return NO;
 }
@@ -152,19 +153,43 @@ static void refreshLabels(void) {
 
 #pragma mark - the preview
 
-%hook _TtC22Lyrics_NPVContainerKit19LyricsContainerView
-- (void)layoutSubviews {
-    %orig;
-    UIView *view = (UIView *)self;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
+// Spotify has had more than one view for the preview: LyricsContainerView (9.1.78's tree), and the elements kit's
+// containers newer versions build it from. Every one this app has is hooked, and the outermost one in the player
+// (a short band as wide as the cover, not a lyrics page or card) gets the tap.
+static NSArray<Class> *sg_previewClasses;
+static const CGFloat kPreviewMinWidth = 200, kPreviewMaxHeight = 220;
+
+static BOOL isPreviewClass(UIView *view) {
+    for (Class cls in sg_previewClasses) {
+        if ([view isKindOfClass:cls]) return YES;
+    }
+    return NO;
+}
+
+static BOOL insidePreviewClass(UIView *view) {
+    UIView *v = view.superview;
+    for (int up = 0; v && up < 8; up++, v = v.superview) {
+        if (isPreviewClass(v)) return YES;
+    }
+    return NO;
+}
+
+static void previewLaidOut(UIView *view) {
+    CGSize size = view.bounds.size;
+    if (!view.window || size.width < kPreviewMinWidth || size.height > kPreviewMaxHeight || size.height < 10) return;
+    if (insidePreviewClass(view)) return;   // the outer one takes it
+    static NSMutableSet<NSString *> *logged;
+    if (!logged) logged = [NSMutableSet set];
+    NSString *name = NSStringFromClass(view.class);
+    if (![logged containsObject:name]) {
+        [logged addObject:name];
         NSMutableArray<NSString *> *kinds = [NSMutableArray array];
         SGForEachView(view, ^(UIView *v) { if (v != view) [kinds addObject:NSStringFromClass(v.class)]; });
-        SGLog(@"redesign player: the lyric preview holds %@", [kinds componentsJoinedByString:@", "]);
-    });
+        SGLog(@"redesign player: the lyric preview is %@ %@, holding %@", name, NSStringFromCGSize(size), [kinds componentsJoinedByString:@", "]);
+    }
     // A label filled before it was inside the preview: its line is taken now.
     SGForEachView(view, ^(UIView *v) {
-        if (![v isKindOfClass:UILabel.class] || [v isKindOfClass:SGRPreviewTap.class]) return;
+        if (![v isKindOfClass:UILabel.class]) return;
         UILabel *label = (UILabel *)v;
         if (objc_getAssociatedObject(label, &kOriginalKey) || !label.text.length) return;
         if (label.attributedText.length) label.attributedText = label.attributedText;
@@ -180,21 +205,42 @@ static void refreshLabels(void) {
     if (!tap) {
         tap = [SGRPreviewTap new];
         objc_setAssociatedObject(view, &kTapKey, tap, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        SGLog(@"redesign player: the lyric preview opens the lyrics in the player");
+        SGLog(@"redesign player: %@ opens the lyrics in the player", name);
     }
     tap.frame = view.bounds;
     if (tap.superview != view) [view addSubview:tap];
     else if (view.subviews.lastObject != tap) [view bringSubviewToFront:tap];
 }
-%end
+
+// -layoutSubviews of a class, followed by previewLaidOut: its own where it has one, added over its superclass's
+// where it has not, so no other class is touched.
+static void hookLayout(Class cls) {
+    SEL sel = @selector(layoutSubviews);
+    Method method = class_getInstanceMethod(cls, sel);
+    if (!method) return;
+    IMP original = method_getImplementation(method);
+    IMP replacement = imp_implementationWithBlock(^(UIView *view) {
+        ((void (*)(id, SEL))original)(view, sel);
+        previewLaidOut(view);
+    });
+    if (!class_addMethod(cls, sel, replacement, method_getTypeEncoding(method))) method_setImplementation(method, replacement);
+}
 
 %ctor {
     if (!SGRedesignedUI()) return;
-    sg_previewClass = NSClassFromString(@"_TtC22Lyrics_NPVContainerKit19LyricsContainerView");
-    if (!sg_previewClass) {
-        SGLog(@"redesign player: no lyric preview view in this Spotify; its tap and text are left alone");
-        return;
+    NSMutableArray<Class> *classes = [NSMutableArray array];
+    for (NSString *name in @[@"_TtC22Lyrics_NPVContainerKit19LyricsContainerView",
+                             @"_TtC25Lyrics_NPVElementsKitImpl26LyricsElementContainerView",
+                             @"_TtC25Lyrics_NPVElementsKitImpl24LyricsElementWrapperView",
+                             @"_TtC28NowPlaying_ContentLayersImpl25LegacyLyricsContainerView"]) {
+        Class cls = NSClassFromString(name);
+        if (cls) [classes addObject:cls];
     }
+    sg_previewClasses = classes;
+    sg_previewClass = classes.firstObject;
+    SGLog(@"redesign player: lyric preview classes %@", classes);
+    if (!classes.count) return;
+    for (Class cls in classes) hookLayout(cls);
     %init;
     [NSNotificationCenter.defaultCenter addObserverForName:SGLyricsRomanisedDidChangeNotification object:nil queue:nil
                                                 usingBlock:^(NSNotification *note) {

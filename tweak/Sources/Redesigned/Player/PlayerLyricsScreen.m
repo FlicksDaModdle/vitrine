@@ -1,7 +1,8 @@
 // Player redesign: the lyrics on a screen of their own, upright. The lines fill it over the player's Fluid
 // artwork, with the track and a back button at the top and a slim progress bar with previous, play and next
-// at the bottom. The back button (or VoiceOver's escape) returns to the player as it was. The buttons at the top sit
-// on glass circles as the player's header ones do, and the bar and its controls on one glass capsule (Kit/SGRGlass.h).
+// at the bottom. The back button (or VoiceOver's escape) returns to the player as it was. Glass is kept to the one
+// control that leaves the screen, the back button's circle, as the player's header has it (Kit/SGRGlass.h); the track
+// is a small cover beside its title, as the Music app's lyrics show it, and the bar and the controls sit plain.
 //
 // Opened from the player's ⋯ menu (Full-Screen Lyrics, PlayerMenu.m) or by holding the footer's lyrics
 // glyph (PlayerFooter.x), whenever the playing track has lines. It is the landscape screen's portrait
@@ -17,8 +18,8 @@
 static const CGFloat kSide = 20, kControlSide = 44, kBarGap = 8, kTimeHeight = 16;
 
 static __weak UIViewController *sg_screen;
-static char kBackGlassKey, kShareGlassKey, kDockGlassKey;
-static const CGFloat kDockPad = 12, kDockSide = 12;
+static char kBackGlassKey;
+static const CGFloat kThumb = 48, kThumbRadius = 8, kBottomGap = 14;
 
 @interface SGRLyricsScreenController : UIViewController <SGPlayerStateObserver>
 @end
@@ -45,7 +46,7 @@ static NSString *timeText(double seconds) {
     SGMarqueeLabel *_title, *_artist;
     UIView *_stage;   // the lines' own view: the karaoke view dims every sibling it has
     SGRKaraokeView *_lyrics;
-    UIView *_dock;   // the glass under the bar and the controls; they are its siblings, above it
+    UIImageView *_cover;
     UISlider *_progress;
     UILabel *_elapsed, *_remaining;
     NSTimer *_clock;
@@ -78,6 +79,13 @@ static NSString *timeText(double seconds) {
     // A lyric card of the lines (Shared/Lyrics/LyricCard.m).
     _share = glyphButton(@"square.and.arrow.up", 18, @"Share lyrics", @selector(shareLyrics), self);
     [self.view addSubview:_share];
+    _cover = [UIImageView new];
+    _cover.contentMode = UIViewContentModeScaleAspectFill;
+    _cover.clipsToBounds = YES;
+    _cover.layer.cornerRadius = kThumbRadius;
+    _cover.layer.cornerCurve = kCACornerCurveContinuous;
+    _cover.image = art;
+    [self.view addSubview:_cover];
     _title = [SGMarqueeLabel new];
     _title.textColor = UIColor.whiteColor;
     _title.font = SGRFont(UIFontTextStyleHeadline, UIFontWeightBold, UIContentSizeCategoryExtraExtraLarge);
@@ -93,10 +101,6 @@ static NSString *timeText(double seconds) {
     _lyrics.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _lyrics.keepsSing = YES;
     [_stage addSubview:_lyrics];
-
-    _dock = [UIView new];
-    _dock.userInteractionEnabled = NO;
-    [self.view addSubview:_dock];
 
     _progress = [UISlider new];
     _progress.minimumTrackTintColor = UIColor.whiteColor;
@@ -155,37 +159,34 @@ static NSString *timeText(double seconds) {
     CGFloat width = safe.size.width, left = CGRectGetMinX(safe);
     CGFloat top = CGRectGetMinY(safe) + 4;
 
-    // The top row: back at the leading edge, the track beside it.
-    _back.frame = CGRectMake(left + 6, top, kControlSide, kControlSide);
-    _share.frame = CGRectMake(CGRectGetMaxX(safe) - 6 - kControlSide, top, kControlSide, kControlSide);
-    CGFloat textLeft = CGRectGetMaxX(_back.frame) + 4, textWidth = CGRectGetMinX(_share.frame) - 4 - textLeft;
+    // The top row: the cover and the track at the leading edge, share and back (on its glass circle) at the trailing one.
+    CGFloat rowHeight = MAX(kThumb, kControlSide);
+    _back.frame = CGRectMake(CGRectGetMaxX(safe) - kSide + 6 - kControlSide, top + (rowHeight - kControlSide) / 2, kControlSide, kControlSide);
+    _share.frame = CGRectOffset(_back.frame, -kControlSide - 4, 0);
+    _cover.frame = CGRectMake(left + kSide, top + (rowHeight - kThumb) / 2, kThumb, kThumb);
+    CGFloat textLeft = CGRectGetMaxX(_cover.frame) + 12, textWidth = CGRectGetMinX(_share.frame) - 8 - textLeft;
     CGFloat titleHeight = ceil(_title.font.lineHeight), artistHeight = ceil(_artist.font.lineHeight);
-    CGFloat textTop = top + (kControlSide - titleHeight - artistHeight) / 2;
+    CGFloat textTop = top + (rowHeight - titleHeight - artistHeight) / 2;
     _title.frame = CGRectMake(textLeft, textTop, textWidth, titleHeight);
     _artist.frame = CGRectMake(textLeft, CGRectGetMaxY(_title.frame), textWidth, artistHeight);
-    CGFloat headerBottom = top + MAX(kControlSide, titleHeight + artistHeight) + kBarGap;
+    CGFloat headerBottom = top + MAX(rowHeight, titleHeight + artistHeight) + kBarGap;
 
     // The bottom: the controls on the safe edge, the bar and its times over them.
-    CGFloat bottom = CGRectGetMaxY(safe) - 10;
+    CGFloat bottom = CGRectGetMaxY(safe) - 6;
     CGFloat controlsTop = bottom - kControlSide;
     CGFloat mid = CGRectGetMidX(safe);
     _play.frame = CGRectMake(mid - kControlSide / 2, controlsTop, kControlSide, kControlSide);
     _previous.frame = CGRectMake(mid - kControlSide * 2.2, controlsTop, kControlSide, kControlSide);
     _next.frame = CGRectMake(mid + kControlSide * 1.2, controlsTop, kControlSide, kControlSide);
     CGFloat timesTop = controlsTop - kTimeHeight;
-    CGFloat inset = kSide + kDockSide;
+    CGFloat inset = kSide + 4;
     _elapsed.frame = CGRectMake(left + inset, timesTop, 60, kTimeHeight);
     _remaining.frame = CGRectMake(CGRectGetMaxX(safe) - inset - 60, timesTop, 60, kTimeHeight);
     _progress.frame = CGRectMake(left + inset, timesTop - 28, width - 2 * inset, 28);
 
-    // The glass: circles behind the two buttons at the top, a capsule around the bar and the controls.
     SGRGlassInside(_back, &kBackGlassKey, kControlSide);
-    SGRGlassInside(_share, &kShareGlassKey, kControlSide);
-    CGFloat dockTop = CGRectGetMinY(_progress.frame) - kDockPad;
-    _dock.frame = CGRectMake(left + kDockSide, dockTop, width - 2 * kDockSide, CGRectGetMaxY(_play.frame) + kDockPad / 2 - dockTop);
-    SGRGlassCapsuleInside(_dock, &kDockGlassKey, _dock.bounds.size, NO);
 
-    CGFloat linesBottom = CGRectGetMinY(_dock.frame) - kBarGap;
+    CGFloat linesBottom = CGRectGetMinY(_progress.frame) - kBottomGap;
     _stage.frame = CGRectMake(CGRectGetMinX(self.view.bounds), headerBottom, self.view.bounds.size.width, linesBottom - headerBottom);
     _lyrics.frame = _stage.bounds;
 }
@@ -195,7 +196,11 @@ static NSString *timeText(double seconds) {
 - (void)artworkChanged {
     NSString *identity = nil;
     UIImage *art = SGRNowPlayingArtwork(NULL, &identity);
-    if (art) [_field setArtwork:art identity:identity animated:YES];
+    if (!art) return;
+    [_field setArtwork:art identity:identity animated:YES];
+    UIImageView *cover = _cover;
+    [UIView transitionWithView:cover duration:SGRCrossfade options:UIViewAnimationOptionTransitionCrossDissolve
+                    animations:^{ cover.image = art; } completion:nil];
 }
 
 - (void)playerStateDidChange:(SPTPlayerState *)state {
