@@ -210,11 +210,6 @@ static void watch(UIScrollView *list) {
     restyle(list);
 }
 
-static void watchListsIn(UIView *root) {
-    SGForEachView(root, ^(UIView *v) {
-        if ([v isKindOfClass:UICollectionView.class] || [v isKindOfClass:UITableView.class]) watch((UIScrollView *)v);
-    });
-}
 
 // A settings page of Spotify's that is not the list's controller: a table under a controller named for Settings.
 static BOOL underSpotifySettings(UIView *view) {
