@@ -63,11 +63,14 @@ static void setType(UIView *cell) {
 
 // The row's leading icon on a gray rounded square, white, as the mod's rows lead with their tiles.
 static void setTile(UIView *cell) {
-    __block UIImageView *icon = nil;
+    // The leading icon: Spotify draws it in a view of its own (Encore's icon view) as often as in an image view, so
+    // it is the smallest squarish view at the row's leading edge with no text in it.
+    __block UIView *icon = nil;
     SGForEachView(cell, ^(UIView *v) {
-        if (icon || ![v isKindOfClass:UIImageView.class] || v.hidden) return;
+        if (v == cell || v.hidden || v.alpha < 0.01 || [v isKindOfClass:UILabel.class] || v == objc_getAssociatedObject(cell, &kTileKey)) return;
         CGRect f = [v convertRect:v.bounds toView:cell];
-        if (f.size.width >= 14 && f.size.width <= 32 && CGRectGetMinX(f) < 60) icon = (UIImageView *)v;
+        if (f.size.width < 14 || f.size.width > 32 || fabs(f.size.width - f.size.height) > 4 || CGRectGetMinX(f) > 40) return;
+        if (!icon || f.size.width < icon.bounds.size.width) icon = v;
     });
     UIView *tile = objc_getAssociatedObject(cell, &kTileKey);
     if (!icon) {
@@ -89,7 +92,14 @@ static void setTile(UIView *cell) {
     CGRect frame = CGRectMake(round(center.x - 14.5), round(center.y - 14.5), 29, 29);
     if (!CGRectEqualToRect(tile.frame, frame)) tile.frame = frame;
     if (![icon.tintColor isEqual:UIColor.whiteColor]) icon.tintColor = UIColor.whiteColor;
-    if (icon.image.renderingMode != UIImageRenderingModeAlwaysTemplate) icon.image = [icon.image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    if ([icon isKindOfClass:UIImageView.class]) {
+        UIImageView *image = (UIImageView *)icon;
+        if (image.image.renderingMode != UIImageRenderingModeAlwaysTemplate) image.image = [image.image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    }
+    // The glyph a little smaller on its square, as a tile's glyph is.
+    CGFloat side = MAX(icon.bounds.size.width, 1), scale = MIN(1, 18 / side);
+    CGAffineTransform shrink = CGAffineTransformMakeScale(scale, scale);
+    if (!CGAffineTransformEqualToTransform(icon.transform, shrink)) icon.transform = shrink;
 }
 
 // A cell narrowed to the card, after the list's pass placed it as wide as the list.
@@ -110,12 +120,15 @@ static void setRule(UIView *cell, BOOL shown) {
     }
     rule.hidden = !shown;
     if (!shown) return;
-    __block CGFloat left = 16;
-    __block BOOL found = NO;
+    // Under the title: the topmost label's leading edge.
+    __block CGFloat left = 16, top = CGFLOAT_MAX;
     SGForEachView(cell, ^(UIView *v) {
-        if (found || ![v isKindOfClass:UILabel.class] || v.hidden) return;
-        found = YES;
-        left = [v convertPoint:CGPointZero toView:cell].x;
+        if (![v isKindOfClass:UILabel.class] || v.hidden || !((UILabel *)v).text.length) return;
+        CGPoint at = [v convertPoint:CGPointZero toView:cell];
+        if (at.y < top) {
+            top = at.y;
+            left = at.x;
+        }
     });
     CGFloat height = 1 / UIScreen.mainScreen.scale;
     CGRect frame = CGRectMake(left, cell.bounds.size.height - height, MAX(0, cell.bounds.size.width - left), height);
@@ -131,10 +144,10 @@ static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
         NSInteger items = [list numberOfItemsInSection:section];
         for (NSInteger item = 0; item < items; item++) {
             UICollectionViewLayoutAttributes *a = [list.collectionViewLayout layoutAttributesForItemAtIndexPath:[NSIndexPath indexPathForItem:item inSection:section]];
-            if (a && !a.hidden && a.frame.size.height > 1) rect = CGRectUnion(rect, a.frame);
+            // Rows as wide as the list; a section of tiles side by side (Data saver, Offline, Private session) has its own.
+            if (a && !a.hidden && a.frame.size.height > 1 && a.frame.size.width >= width - 1) rect = CGRectUnion(rect, a.frame);
         }
         if (CGRectIsNull(rect)) rect = CGRectZero;
-        else if (rect.size.width >= width - 1) rect = CGRectInset(rect, kSideInset, 0);
         [rects addObject:[NSValue valueWithCGRect:rect]];
     }
     // A row of the mod's under the last section, laid in the list as one of its own.
@@ -145,7 +158,7 @@ static NSArray<NSValue *> *collectionRects(UICollectionView *list) {
         for (UIView *sub in list.subviews) {
             if ([sub isKindOfClass:UICollectionReusableView.class] || [sub isKindOfClass:UIVisualEffectView.class] || sub.hidden || sub.alpha < 0.01) continue;
             CGRect f = sub.frame;
-            if (f.size.width < width - 2 * kSideInset - 1 || f.size.height < 36 || f.size.height > 90 || sub.layer.zPosition < 0) continue;
+            if (f.size.width < width - 1 || f.size.height < 36 || f.size.height > 90 || sub.layer.zPosition < 0) continue;
             if (CGRectGetMinY(f) < CGRectGetMaxY(end) - 1 || CGRectGetMinY(f) > CGRectGetMaxY(end) + 40) continue;
             // On the card, not out past its side.
             CGRect narrowed = CGRectMake(CGRectGetMinX(end), f.origin.y, end.size.width, f.size.height);
@@ -164,7 +177,6 @@ static void restyle(UIScrollView *list) {
         UICollectionView *collection = (UICollectionView *)list;
         for (UICollectionViewCell *cell in collection.visibleCells) {
             clearCell(cell);
-            narrow(cell, list.bounds.size.width);
             setType(cell);
             setTile(cell);
             NSIndexPath *path = [collection indexPathForCell:cell];
@@ -204,9 +216,22 @@ static void watchListsIn(UIView *root) {
     });
 }
 
+// The list made narrower by kSideInset a side, so Spotify's layout lays its rows out on the cards' width: a row narrowed
+// by hand after the layout's pass was put back as wide as the screen by its next, its chevron out past the card.
+static void narrowList(UIView *root) {
+    if (root.backgroundColor != UIColor.blackColor) root.backgroundColor = UIColor.blackColor;
+    for (UIView *sub in root.subviews) {
+        if (![sub isKindOfClass:UICollectionView.class]) continue;
+        CGRect frame = sub.frame;
+        if (frame.size.width < root.bounds.size.width - 1) continue;
+        sub.frame = CGRectMake(CGRectGetMinX(frame) + kSideInset, frame.origin.y, frame.size.width - 2 * kSideInset, frame.size.height);
+    }
+}
+
 %hook _TtC21Settings_PlatformImpl26SettingsListViewController
 - (void)viewDidLayoutSubviews {
     %orig;
+    narrowList(((UIViewController *)self).view);
     watchListsIn(((UIViewController *)self).view);
 }
 %end
