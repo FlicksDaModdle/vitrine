@@ -100,7 +100,7 @@ static SGRSettingsItem *itemOf(UIView *cell) {
     CGFloat width = cell.bounds.size.width;
     SGForEachView(cell, ^(UIView *v) {
         if (v.hidden || v.alpha < 0.01) return;
-        if ([v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) [labels addObject:(UILabel *)v];
+        if ([v isKindOfClass:UILabel.class] && [((UILabel *)v).text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) [labels addObject:(UILabel *)v];
         if ([v isKindOfClass:UISwitch.class]) toggle = (UISwitch *)v;
         CGRect f = [v convertRect:v.bounds toView:cell];
         if (![v isKindOfClass:UILabel.class] && f.size.width <= 24 && f.size.width >= 6 && CGRectGetMinX(f) > width - 60) chevron = YES;
@@ -128,12 +128,71 @@ static SGRSettingsItem *itemOf(UIView *cell) {
         item.title = parts.firstObject;
         if (parts.count > 1) item.subtitle = [[parts subarrayWithRange:NSMakeRange(1, parts.count - 1)] componentsJoinedByString:@", "];
     }
-    if (!item.title.length) return nil;
+    // A cell with no words of its own (a spacer, a picture) is not a row.
+    if (![item.title stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) return nil;
     item.hasSwitch = toggle != nil;
     item.on = toggle.on;
     item.opens = !toggle && chevron;
     item.source = cell;
     return item;
+}
+
+// A cell holding tiles side by side (Data saver mode, Offline mode, Private session): each tile a row of its own,
+// its name the title and what is under it the value, a tap firing the tile. nil for a cell of one row.
+static NSArray<SGRSettingsItem *> *tilesOf(UIView *cell) {
+    NSMutableArray<UILabel *> *labels = [NSMutableArray array];
+    SGForEachView(cell, ^(UIView *v) {
+        if (!v.hidden && v.alpha >= 0.01 && [v isKindOfClass:UILabel.class] && [((UILabel *)v).text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) [labels addObject:(UILabel *)v];
+    });
+    CGFloat width = cell.bounds.size.width;
+    // Columns: labels whose spans across the cell do not overlap.
+    NSMutableArray<NSMutableArray<UILabel *> *> *columns = [NSMutableArray array];
+    NSMutableArray<NSValue *> *spans = [NSMutableArray array];
+    for (UILabel *label in labels) {
+        CGRect f = [label convertRect:label.bounds toView:cell];
+        NSUInteger hit = NSNotFound;
+        for (NSUInteger i = 0; i < spans.count; i++) {
+            CGRect span = spans[i].CGRectValue;
+            if (CGRectGetMinX(f) < CGRectGetMaxX(span) && CGRectGetMaxX(f) > CGRectGetMinX(span)) { hit = i; break; }
+        }
+        if (hit == NSNotFound) {
+            [columns addObject:[NSMutableArray arrayWithObject:label]];
+            [spans addObject:[NSValue valueWithCGRect:CGRectMake(CGRectGetMinX(f), 0, f.size.width, 1)]];
+        } else {
+            [columns[hit] addObject:label];
+            CGRect span = spans[hit].CGRectValue;
+            spans[hit] = [NSValue valueWithCGRect:CGRectUnion(span, CGRectMake(CGRectGetMinX(f), 0, f.size.width, 1))];
+        }
+    }
+    if (columns.count < 2) return nil;
+    for (NSValue *span in spans) if (span.CGRectValue.size.width > width * 0.6) return nil;
+    NSMutableArray<SGRSettingsItem *> *items = [NSMutableArray array];
+    NSArray *order = [[NSArray arrayWithArray:columns] sortedArrayUsingComparator:^NSComparisonResult(NSArray<UILabel *> *a, NSArray<UILabel *> *b) {
+        CGFloat xa = [a.firstObject convertPoint:CGPointZero toView:cell].x, xb = [b.firstObject convertPoint:CGPointZero toView:cell].x;
+        return xa < xb ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    for (NSMutableArray<UILabel *> *column in order) {
+        [column sortUsingComparator:^NSComparisonResult(UILabel *a, UILabel *b) {
+            CGFloat ya = [a convertPoint:CGPointZero toView:cell].y, yb = [b convertPoint:CGPointZero toView:cell].y;
+            return ya < yb ? NSOrderedAscending : NSOrderedDescending;
+        }];
+        SGRSettingsItem *item = [SGRSettingsItem new];
+        item.title = column.firstObject.text;
+        NSMutableArray<NSString *> *rest = [NSMutableArray array];
+        for (UILabel *label in [column subarrayWithRange:NSMakeRange(1, column.count - 1)]) [rest addObject:label.text];
+        if (rest.count) item.value = [rest componentsJoinedByString:@" "];
+        // The tile: the widest view around its labels that is still narrower than the cell.
+        UIView *tile = column.firstObject;
+        for (UIView *v = column.firstObject.superview; v && v != cell; v = v.superview) {
+            BOOL holds = YES;
+            for (UILabel *label in column) holds &= [label isDescendantOfView:v];
+            if (holds && v.bounds.size.width < width * 0.6) tile = v;
+            if (v.bounds.size.width >= width * 0.6) break;
+        }
+        item.source = tile;
+        [items addObject:item];
+    }
+    return items;
 }
 
 // Every row of the list, by section, with each section's header text; nil when the page cannot be shown this way.
@@ -149,6 +208,11 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
             if (unsupported(cell)) {
                 *headers = nil;
                 return @[];
+            }
+            NSArray<SGRSettingsItem *> *tiles = tilesOf(cell);
+            if (tiles) {
+                [rows addObjectsFromArray:tiles];
+                continue;
             }
             SGRSettingsItem *item = itemOf(cell);
             if (!item) continue;
