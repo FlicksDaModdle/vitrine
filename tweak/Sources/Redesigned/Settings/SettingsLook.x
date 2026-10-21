@@ -216,26 +216,6 @@ static void watchListsIn(UIView *root) {
     });
 }
 
-// The list made narrower by kSideInset a side, so Spotify's layout lays its rows out on the cards' width: a row narrowed
-// by hand after the layout's pass was put back as wide as the screen by its next, its chevron out past the card.
-static void narrowList(UIView *root) {
-    if (root.backgroundColor != UIColor.blackColor) root.backgroundColor = UIColor.blackColor;
-    for (UIView *sub in root.subviews) {
-        if (![sub isKindOfClass:UICollectionView.class]) continue;
-        CGRect frame = sub.frame;
-        if (frame.size.width < root.bounds.size.width - 1) continue;
-        sub.frame = CGRectMake(CGRectGetMinX(frame) + kSideInset, frame.origin.y, frame.size.width - 2 * kSideInset, frame.size.height);
-    }
-}
-
-%hook _TtC21Settings_PlatformImpl26SettingsListViewController
-- (void)viewDidLayoutSubviews {
-    %orig;
-    narrowList(((UIViewController *)self).view);
-    watchListsIn(((UIViewController *)self).view);
-}
-%end
-
 // A settings page of Spotify's that is not the list's controller: a table under a controller named for Settings.
 static BOOL underSpotifySettings(UIView *view) {
     for (UIResponder *r = view.nextResponder; r; r = r.nextResponder) {
@@ -250,6 +230,10 @@ static BOOL underSpotifySettings(UIView *view) {
 - (void)didMoveToWindow {
     %orig;
     UITableView *table = (UITableView *)self;
+    // Not SettingsMirror.x's own page, which is a mod page already.
+    static Class mirrorClass;
+    if (!mirrorClass) mirrorClass = NSClassFromString(@"SGRSettingsMirror");
+    if ([table isKindOfClass:mirrorClass]) return;
     if (table.window && !objc_getAssociatedObject(table, &kStyledKey) && underSpotifySettings(table)) watch(table);
 }
 %end
