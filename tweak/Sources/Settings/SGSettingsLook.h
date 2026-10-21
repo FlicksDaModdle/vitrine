@@ -1,8 +1,6 @@
-// Settings the way iOS draws its own, for the redesign: the system font at Settings' sizes (17 pt titles, 13 pt
-// subtitles, headers and notes) on the mod's pages, which already stand on inset grouped cards, and Spotify's
-// settings lists made the same: their rows inset onto cards of #1C1C1E with the system's corner, on black. The
-// redesign switches it on at launch (Redesigned/Settings/SettingsLook.x); the native look keeps the mod's own
-// 13 pt Spotify type.
+// The mod's pages the way iOS draws Settings, for the redesign: the system font at Settings' sizes (17 pt titles,
+// 13 pt subtitles, headers and notes) on the inset grouped cards they already stand on. The redesign switches it on
+// at launch (Redesigned/Settings/SettingsLook.x); the native look keeps the mod's own 13 pt Spotify type.
 #import <UIKit/UIKit.h>
 
 extern BOOL SGPagesNativeLook;
