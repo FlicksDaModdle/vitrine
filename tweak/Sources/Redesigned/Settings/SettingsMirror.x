@@ -19,7 +19,11 @@
 
 @interface SGRSettingsItem : NSObject
 @property (nonatomic, copy) NSString *title, *subtitle, *value;
-@property (nonatomic) BOOL hasSwitch, on, opens;
+@property (nonatomic) BOOL hasSwitch, on, opens, header;
+@property (nonatomic) float sliderValue, sliderMin, sliderMax;
+@property (nonatomic) BOOL hasSlider;
+@property (nonatomic, copy) NSArray<NSString *> *segments;   // a segmented control's titles
+@property (nonatomic) NSInteger selectedSegment;
 @property (nonatomic, strong) NSIndexPath *path;       // nil for a view of the list's that is not a cell
 @property (nonatomic, weak) UIView *source;
 @end
@@ -87,8 +91,7 @@ static BOOL unsupported(UIView *cell) {
     __block BOOL found = NO;
     SGForEachView(cell, ^(UIView *v) {
         if (found || v.hidden) return;
-        if ([v isKindOfClass:UISlider.class] || [v isKindOfClass:UITextField.class] || [v isKindOfClass:UISegmentedControl.class]
-            || [v isKindOfClass:UIStepper.class] || ([v isKindOfClass:UITextView.class] && ((UITextView *)v).editable)) found = YES;
+        if ([v isKindOfClass:UITextField.class] || [v isKindOfClass:UIStepper.class] || ([v isKindOfClass:UITextView.class] && ((UITextView *)v).editable)) found = YES;
     });
     return found;
 }
@@ -96,12 +99,16 @@ static BOOL unsupported(UIView *cell) {
 static SGRSettingsItem *itemOf(UIView *cell) {
     NSMutableArray<UILabel *> *labels = [NSMutableArray array];
     __block UISwitch *toggle = nil;
+    __block UISlider *slider = nil;
+    __block UISegmentedControl *segmented = nil;
     __block BOOL chevron = NO;
     CGFloat width = cell.bounds.size.width;
     SGForEachView(cell, ^(UIView *v) {
         if (v.hidden || v.alpha < 0.01) return;
         if ([v isKindOfClass:UILabel.class] && [((UILabel *)v).text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) [labels addObject:(UILabel *)v];
         if ([v isKindOfClass:UISwitch.class]) toggle = (UISwitch *)v;
+        if ([v isKindOfClass:UISlider.class]) slider = (UISlider *)v;
+        if ([v isKindOfClass:UISegmentedControl.class]) segmented = (UISegmentedControl *)v;
         CGRect f = [v convertRect:v.bounds toView:cell];
         if (![v isKindOfClass:UILabel.class] && f.size.width <= 24 && f.size.width >= 6 && CGRectGetMinX(f) > width - 60) chevron = YES;
     });
@@ -122,9 +129,21 @@ static SGRSettingsItem *itemOf(UIView *cell) {
             else [under addObject:label.text];
         }
         if (under.count) item.subtitle = [under componentsJoinedByString:@" "];
+        // A lone gray line of small type is the heading over the rows after it, which Spotify makes a row of its own.
+        UIColor *color = title.textColor;
+        CGFloat white = 1, alpha = 1;
+        if (![color getWhite:&white alpha:&alpha]) {
+            CGFloat r = 1, g = 1, b = 1;
+            if ([color getRed:&r green:&g blue:&b alpha:&alpha]) white = (r + g + b) / 3;
+        }
+        BOOL quiet = white * alpha < 0.8 || title.font.pointSize < 14.5;
+        item.header = labels.count == 1 && quiet;
     } else {
-        // Encore's text is not always a label: its accessibility says the same, title first.
-        NSArray<NSString *> *parts = [cell.accessibilityLabel componentsSeparatedByString:@", "];
+        // Encore's text is not always a label: its accessibility says the same, title first, the cell's own or the
+        // first view in it that has any.
+        __block NSString *spoken = cell.accessibilityLabel;
+        if (!spoken.length) SGForEachView(cell, ^(UIView *v) { if (!spoken.length && v.accessibilityLabel.length && ![v isKindOfClass:UISwitch.class]) spoken = v.accessibilityLabel; });
+        NSArray<NSString *> *parts = [spoken componentsSeparatedByString:@", "];
         item.title = parts.firstObject;
         if (parts.count > 1) item.subtitle = [[parts subarrayWithRange:NSMakeRange(1, parts.count - 1)] componentsJoinedByString:@", "];
     }
@@ -132,7 +151,18 @@ static SGRSettingsItem *itemOf(UIView *cell) {
     if (![item.title stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length) return nil;
     item.hasSwitch = toggle != nil;
     item.on = toggle.on;
-    item.opens = !toggle && chevron;
+    item.hasSlider = slider != nil;
+    item.sliderValue = slider.value;
+    item.sliderMin = slider.minimumValue;
+    item.sliderMax = slider.maximumValue;
+    if (segmented) {
+        NSMutableArray<NSString *> *titles = [NSMutableArray array];
+        for (NSUInteger i = 0; i < segmented.numberOfSegments; i++) [titles addObject:[segmented titleForSegmentAtIndex:i] ?: @""];
+        item.segments = titles;
+        item.selectedSegment = segmented.selectedSegmentIndex;
+    }
+    item.opens = !toggle && !slider && !segmented && chevron;
+    if (item.hasSwitch || item.hasSlider || item.segments || item.opens) item.header = NO;
     item.source = cell;
     return item;
 }
@@ -199,12 +229,16 @@ static NSArray<SGRSettingsItem *> *tilesOf(UIView *cell) {
 static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) {
     NSMutableArray *sections = [NSMutableArray array];
     NSMutableArray<NSString *> *titles = [NSMutableArray array];
+    NSString *pendingHeader = nil;
     for (NSInteger section = 0; section < list.numberOfSections; section++) {
         NSMutableArray<SGRSettingsItem *> *rows = [NSMutableArray array];
         for (NSInteger index = 0; index < [list numberOfItemsInSection:section]; index++) {
             NSIndexPath *path = [NSIndexPath indexPathForItem:index inSection:section];
             UICollectionViewCell *cell = [list cellForItemAtIndexPath:path];
-            if (!cell) return nil;   // not laid out yet
+            if (!cell) {
+                SGLog(@"redesign settings: item %ld.%ld has no cell yet (list %@, content %@)", (long)section, (long)index, NSStringFromCGRect(list.frame), NSStringFromCGSize(list.contentSize));
+                return nil;   // not laid out yet
+            }
             if (unsupported(cell)) {
                 *headers = nil;
                 return @[];
@@ -215,8 +249,29 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
                 continue;
             }
             SGRSettingsItem *item = itemOf(cell);
-            if (!item) continue;
+            if (!item) {
+                static NSMutableSet<NSString *> *logged;
+                if (!logged) logged = [NSMutableSet set];
+                NSString *kind = NSStringFromClass(cell.class);
+                if (![logged containsObject:kind]) {
+                    [logged addObject:kind];
+                    NSMutableArray *parts = [NSMutableArray array];
+                    SGForEachView(cell, ^(UIView *v) { if (v != cell) [parts addObject:[NSString stringWithFormat:@"%@%@", NSStringFromClass(v.class), v.accessibilityLabel.length ? [@"=" stringByAppendingString:v.accessibilityLabel] : @""]]; });
+                    SGLog(@"redesign settings: a cell with no text read, %@ %@: %@", kind, NSStringFromCGSize(cell.bounds.size), [parts componentsJoinedByString:@", "]);
+                }
+                continue;
+            }
             item.path = path;
+            if (item.header) {
+                // The rows so far are a section; the heading leads the next.
+                if (rows.count) {
+                    [sections addObject:rows];
+                    [titles addObject:pendingHeader ?: @""];
+                }
+                rows = [NSMutableArray array];
+                pendingHeader = item.title;
+                continue;
+            }
             [rows addObject:item];
         }
         // The section's header: the text of a supplementary view over its first row.
@@ -230,6 +285,10 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
         __block NSString *text = nil;
         if (view) SGForEachView(view, ^(UIView *v) { if (!text && [v isKindOfClass:UILabel.class] && ((UILabel *)v).text.length) text = ((UILabel *)v).text; });
         if (text) header = text;
+        if (pendingHeader) {
+            header = pendingHeader;
+            pendingHeader = nil;
+        }
         if (rows.count) {
             [sections addObject:rows];
             [titles addObject:header];
@@ -308,8 +367,24 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
     content.imageToTextPadding = 13;
     cell.contentConfiguration = content;
     cell.separatorInset = UIEdgeInsetsMake(0, SGTileRowInset, 0, 0);
-    cell.selectionStyle = item.hasSwitch ? UITableViewCellSelectionStyleNone : UITableViewCellSelectionStyleDefault;
-    if (item.hasSwitch) {
+    cell.selectionStyle = item.hasSwitch || item.hasSlider || item.segments.count ? UITableViewCellSelectionStyleNone : UITableViewCellSelectionStyleDefault;
+    if (item.hasSlider) {
+        UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(0, 0, 150, 30)];
+        slider.minimumValue = item.sliderMin;
+        slider.maximumValue = item.sliderMax;
+        slider.value = item.sliderValue;
+        slider.minimumTrackTintColor = SGGreen();
+        slider.tag = path.section * 1000 + path.row;
+        [slider addTarget:self action:@selector(slid:) forControlEvents:UIControlEventValueChanged];
+        cell.accessoryView = slider;
+    } else if (item.segments.count) {
+        UISegmentedControl *segmented = [[UISegmentedControl alloc] initWithItems:item.segments];
+        segmented.selectedSegmentIndex = item.selectedSegment;
+        segmented.tag = path.section * 1000 + path.row;
+        [segmented addTarget:self action:@selector(segmentChose:) forControlEvents:UIControlEventValueChanged];
+        [segmented sizeToFit];
+        cell.accessoryView = segmented;
+    } else if (item.hasSwitch) {
         UISwitch *toggle = [UISwitch new];
         toggle.on = item.on;
         toggle.onTintColor = SGGreen();
@@ -333,6 +408,25 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
     return cell;
 }
 
+- (void)slid:(UISlider *)slider {
+    SGRSettingsItem *item = self.sections[slider.tag / 1000][slider.tag % 1000];
+    __block UISlider *theirs = nil;
+    SGForEachView(item.source, ^(UIView *v) { if (!theirs && [v isKindOfClass:UISlider.class]) theirs = (UISlider *)v; });
+    if (!theirs) return;
+    theirs.value = slider.value;
+    [theirs sendActionsForControlEvents:UIControlEventValueChanged];
+    if (!slider.tracking) [theirs sendActionsForControlEvents:UIControlEventTouchUpInside];
+}
+
+- (void)segmentChose:(UISegmentedControl *)segmented {
+    SGRSettingsItem *item = self.sections[segmented.tag / 1000][segmented.tag % 1000];
+    __block UISegmentedControl *theirs = nil;
+    SGForEachView(item.source, ^(UIView *v) { if (!theirs && [v isKindOfClass:UISegmentedControl.class]) theirs = (UISegmentedControl *)v; });
+    if (!theirs) return;
+    theirs.selectedSegmentIndex = segmented.selectedSegmentIndex;
+    [theirs sendActionsForControlEvents:UIControlEventValueChanged];
+}
+
 - (void)flipped:(UISwitch *)toggle {
     SGRSettingsItem *item = self.sections[toggle.tag / 1000][toggle.tag % 1000];
     __block UISwitch *theirs = nil;
@@ -346,7 +440,7 @@ static NSArray *readList(UICollectionView *list, NSArray<NSString *> **headers) 
     [table deselectRowAtIndexPath:path animated:YES];
     SGRSettingsItem *item = self.sections[path.section][path.row];
     UICollectionView *list = self.list;
-    if (item.hasSwitch) return;
+    if (item.hasSwitch || item.hasSlider || item.segments.count) return;
     if (!item.path || !list || ![list.delegate respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) {
         SGRActivate(item.source);
         return;
@@ -389,7 +483,7 @@ static void showList(UICollectionView *list) {
 static NSString *signatureOf(NSArray<NSArray<SGRSettingsItem *> *> *sections, NSArray<NSString *> *headers) {
     NSMutableString *s = [NSMutableString stringWithString:[headers componentsJoinedByString:@"|"]];
     for (NSArray<SGRSettingsItem *> *rows in sections)
-        for (SGRSettingsItem *item in rows) [s appendFormat:@"/%@~%@~%@~%d%d%d", item.title, item.subtitle ?: @"", item.value ?: @"", item.hasSwitch, item.on, item.opens];
+        for (SGRSettingsItem *item in rows) [s appendFormat:@"/%@~%@~%@~%d%d%d%d%.3f%ld", item.title, item.subtitle ?: @"", item.value ?: @"", item.hasSwitch, item.on, item.opens, item.hasSlider, item.sliderValue, (long)item.selectedSegment];
     return s;
 }
 
@@ -422,7 +516,23 @@ static void mirror(UIViewController *controller) {
         SGLog(@"redesign settings: %@ keeps Spotify's own list", NSStringFromClass(controller.class));
         return;
     }
-    if (!sections.count) return;   // not laid out yet, or nothing read: the next pass tries again
+    if (!sections.count) {
+        // Not laid out yet, or nothing read: the next passes try again, and after a few Spotify's list comes back
+        // rather than an empty page.
+        static char kTriesKey;
+        NSInteger tries = [objc_getAssociatedObject(list, &kTriesKey) integerValue] + 1;
+        objc_setAssociatedObject(list, &kTriesKey, @(tries), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if (tries >= 6 && !page.superview) {
+            objc_setAssociatedObject(list, &kBailKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            showList(list);
+            SGLog(@"redesign settings: %@ read nothing (%ld sections, %lu cells up, list %@ of content %@), Spotify's own list stays",
+                  NSStringFromClass(controller.class), (long)list.numberOfSections, (unsigned long)list.visibleCells.count,
+                  NSStringFromCGRect(list.frame), NSStringFromCGSize(list.contentSize));
+        } else if (tries < 6) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ mirror(controller); });
+        }
+        return;
+    }
     CGRect frame = root.bounds;
     if (!CGRectEqualToRect(page.frame, frame)) page.frame = frame;
     if (page.superview != root) {
