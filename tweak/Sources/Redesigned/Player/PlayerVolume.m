@@ -122,6 +122,12 @@ static void settle(UIView *stack, UIView *row, BOOL moved, CGRect frame) {
     });
 }
 
+static CGRect plainIn(UIView *view, UIView *host) {
+    CGSize size = view.bounds.size;
+    CGRect frame = CGRectMake(view.center.x - size.width / 2, view.center.y - size.height / 2, size.width, size.height);
+    return view.superview ? [host convertRect:frame fromView:view.superview] : frame;
+}
+
 BOOL SGRPlayerPlaceVolume(UIView *stack, UIView *controls, UIView *row, CGFloat margin) {
     SGRVolumeRow *volume = objc_getAssociatedObject(stack, &kVolumeKey);
     if (!SGRPlayerVolumeOn() || !controls) {
@@ -146,8 +152,11 @@ BOOL SGRPlayerPlaceVolume(UIView *stack, UIView *controls, UIView *row, CGFloat 
         volume.alpha = 0;
         return NO;
     }
-    CGFloat above = CGRectGetMaxY([play convertRect:play.bounds toView:stack]);
-    CGFloat below = [row convertPoint:CGPointMake(CGRectGetMidX(row.bounds), CGRectGetMidY(row.bounds)) toView:stack].y - kGlyphsHalf;
+    // Where each stands without a transform of its own: the play button grows and shrinks as it is pressed and as it
+    // turns between play and pause, and a frame read in the middle of that put the row up against the button and left
+    // it there. The moves of the views around them (convertRect: from their parents) are still taken in.
+    CGFloat above = CGRectGetMaxY(plainIn(play, stack));
+    CGFloat below = CGRectGetMidY(plainIn(row, stack)) - kGlyphsHalf;
     CGFloat height = kRowHeight, room = below - above;
     CGRect frame = CGRectMake(margin, round((above + below - height) / 2), MAX(0, stack.bounds.size.width - 2 * margin), height);
     BOOL moved = !CGRectEqualToRect(volume.frame, frame);

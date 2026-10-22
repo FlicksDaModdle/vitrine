@@ -186,11 +186,23 @@ static NSInteger positionMs(SPTPlayerState *state) {
     BOOL _wasShuffling;
     NSString *_lastContext;
     BOOL _busy;
+    NSString *_dealtContext;
+    NSDate *_dealtAt;
 }
+
+// A context dealt this recently is not dealt again: Spotify can report its shuffle on again after the play that turned
+// it off, and each deal started the song over, so it played and stopped and played again.
+static const NSTimeInterval kDealAgainAfter = 120;
 
 - (BOOL)play:(NSString *)contextURI order:(NSArray<NSString *> *)order withURI:(BOOL)withURI {
     id player = SGKaraokePlayer();
     SPTPlayerState *state = SGPlayerState();
+    // The song moved on while the tracks were read: dealing now would take the player back to the one before.
+    NSString *playing = SGURIString(state.track.URI);
+    if (!playing || ![playing isEqualToString:order.firstObject]) {
+        SGLog(@"true shuffle: the song moved on to %@ while %@ was read; not dealt", playing ?: @"nothing", contextURI);
+        return NO;
+    }
     id context = makeContext(contextURI, order, withURI), options = state ? makeOptions(state, positionMs(state)) : nil;
     SEL play = NSSelectorFromString(@"playContext:options:");
     if (!player || !context || !options || ![player respondsToSelector:play]) {
@@ -214,15 +226,19 @@ static NSInteger positionMs(SPTPlayerState *state) {
         NSUInteger at = next ? [order indexOfObject:next] : NSNotFound;
         BOOL followed = at != NSNotFound && at <= 2;
         SGLog(@"true shuffle: next is %@ (%@)", next ?: @"nothing", followed ? @"the dealt order" : @"not the dealt order");
-        if (!followed && withURI && order.count > 1) {
-            if ([self play:contextURI order:order withURI:NO]) [self check:contextURI order:order withURI:NO];
-            return;
-        }
+        // Not played a second time as a context of tracks: that restarted the song once more, and the clash of the two
+        // plays was heard as the song stopping. Spotify's own order stays then.
         self->_busy = NO;
     });
 }
 
 - (void)dealFor:(NSString *)contextURI track:(NSString *)track {
+    if ([contextURI isEqualToString:_dealtContext] && _dealtAt && -_dealtAt.timeIntervalSinceNow < kDealAgainAfter) {
+        SGLog(@"true shuffle: %@ was dealt %.0fs ago; not again", contextURI, -_dealtAt.timeIntervalSinceNow);
+        return;
+    }
+    _dealtContext = contextURI;
+    _dealtAt = NSDate.date;
     _busy = YES;
     BOOL known = fetchContext(contextURI, ^(NSArray<NSString *> *uris) {
         if (uris.count < 3) {
