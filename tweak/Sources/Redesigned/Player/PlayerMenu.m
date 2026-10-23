@@ -4,6 +4,7 @@
 //
 //     Speed, Pitch & Reverb   opens the sliders in a popover from the ⋯ (SGPlayerShowSpeedPitchPanel): speed,
 //                             pitch, reverb and Pitch follows speed, as on Spotify's sheet (issue #14)
+//     Karaoke…                Karaoke's switch and the mix of vocals and music, in a popover (PlayerKaraokePanel.m)
 //     Show Fluid Artwork, Show Animated Artwork, Show Visualizer
 //                             a button for each of the two the background is not, while it is one of the
 //                             three, named for what it switches to
@@ -65,6 +66,10 @@ static NSArray<UIMenuElement *> *playerItems(void) {
         [items addObject:[UIAction actionWithTitle:@"Lyrics Size…" image:symbol(@"textformat.size") identifier:nil
                                            handler:^(UIAction *action) { SGRShowLyricsSizePanel(sg_moreButton, 0); }]];
     }
+    UIAction *karaoke = [UIAction actionWithTitle:@"Karaoke…" image:symbol(@"music.mic") identifier:nil
+                                          handler:^(UIAction *action) { SGRShowKaraokePanel(sg_moreButton); }];
+    karaoke.subtitle = SGRKaraokeMenuSubtitle();
+    [items addObject:karaoke];
     if (SGRPlayerLyricsAvailable() && SGRKaraokeCanTranslateNow()) {
         [items addObject:[UIAction actionWithTitle:@"Translate Lyrics" image:symbol(@"translate") identifier:nil
                                            handler:^(UIAction *action) { SGRKaraokeTranslateNow(); }]];

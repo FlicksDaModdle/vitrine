@@ -132,6 +132,9 @@ void SGRPlayerShowLyricsScreen(void);
 // The lyrics' size by slider, in a glass popover from `from` (PlayerLyricsSizePanel.m): every place's, or only
 // `onlyPlace`'s (an SGRLyricsPlace; 0 for all three).
 void SGRShowLyricsSizePanel(UIView *from, NSInteger onlyPlace);
+// Karaoke from the ⋯ (PlayerKaraokePanel.m): its switch and the mix of vocals and music; the menu item's subtitle.
+void SGRShowKaraokePanel(UIView *from);
+NSString *SGRKaraokeMenuSubtitle(void);
 // A tap on Spotify's lyric preview under the cover brings the lyrics into the player, as the lyrics glyph does
 // (PlayerLyricsPreviewTap.x). On until
 // switched off.
