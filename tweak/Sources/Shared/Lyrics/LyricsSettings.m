@@ -20,7 +20,8 @@ SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
         NSUInteger count = SGImportedLRCFiles().count;
         return count ? @(count).stringValue : @"None";
     };
-    NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources, imported,
+    SGModRow *words = SGOptionRow(@"Prefer word-by-word timing", @"Asks down the order past lines timed by the line", SGKeyLyricsPreferWordTiming);
+    NSMutableArray<SGModRow *> *rows = [NSMutableArray arrayWithObjects:sources, words, imported,
         SGSwitchRow(@"Lyrics for every track", @"Even where Spotify has none", SGKeyLyricsAllTracks), SGSpicyLyricsKeyRow(), nil];
     // Spicy Lyrics' terms ask for its credit wherever its lines show (Shared/LyricsSources/SpicyLyrics.m), so the switch
     // says so, or its credit under the lyrics reads as the switch not working (issue #20).
@@ -36,6 +37,12 @@ SGModSection *SGLyricsSourcesSection(BOOL namingSource) {
 
 SGModRow *SGLockScreenLyricsRow(void) {
     return SGOptionRow(@"Lock screen lyrics", @"Current line in place of the artist", SGKeyLockScreenLyrics);
+}
+
+SGModRow *SGLockScreenTranslationRow(void) {
+    SGModRow *row = SGOptionRow(@"Lock screen translation", @"The line's translation in its place, when the lyrics have one", SGKeyLockScreenTranslation);
+    row.waitsOn = SGKeyLockScreenLyrics;
+    return row;
 }
 
 SGModRow *SGLyricsTranslationLanguageRow(void) {
@@ -56,14 +63,12 @@ SGModRow *SGLyricsRomanisedRow(void) {
     return row;
 }
 
-SGModRow *SGLyricsRomanisedModeRow(void) {
-    NSArray<NSString *> *choices = @[@"Under the original", @"Instead of the original"];
-    SGModRow *row = SGMenuRow(@"Show romanized", choices, ^NSString *{
-        return choices[SGInt(SGKeyLyricsRomanisedMode, 0) == 1 ? 1 : 0];
-    }, ^(NSInteger index) {
-        SGSetInt(SGKeyLyricsRomanisedMode, index);
+SGModRow *SGLyricsRomanisedReplaceRow(void) {
+    SGModRow *row = SGOptionRow(@"In place of original", @"Show the Latin letters instead of the original script", SGKeyLyricsRomanisedReplace);
+    row.waitsOn = SGKeyLyricsRomanised;
+    row.changed = ^(BOOL on) {
         [NSNotificationCenter.defaultCenter postNotificationName:SGLyricsRomanisedDidChangeNotification object:nil];
-    });
+    };
     return row;
 }
 
@@ -77,4 +82,10 @@ SGModRow *SGLyricsDelayRow(void) {
     return SGSliderRow(@"Delay", nil, 0, 1000, 25, ^double { return SGKaraokeDelayMs(); },
                        ^(double value) { SGSetInt(SGKeyLyricsDelay, lround(value)); },
                        ^NSString *(double value) { return [NSString stringWithFormat:@"%ld ms", lround(value)]; });
+}
+
+// The fork's Show romanized menu kept its choice as a number (1 for in place of the original); the same choice is
+// upstream's In place of original switch now.
+__attribute__((constructor)) static void SGMigrateRomanisedMode(void) {
+    SGMigrateKey(@"spotifyglass.lyricsRomanisedMode", SGKeyLyricsRomanisedReplace);
 }

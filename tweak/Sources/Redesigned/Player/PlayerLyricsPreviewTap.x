@@ -85,7 +85,7 @@ static NSString *romanisedLine(NSString *line) {
 }
 
 static BOOL instead(void) {
-    return SGInt(SGKeyLyricsRomanisedMode, 0) == 1;
+    return SGFlag(SGKeyLyricsRomanisedReplace, NO);
 }
 
 static NSAttributedString *shownAttributed(NSAttributedString *line, NSString *latin) {

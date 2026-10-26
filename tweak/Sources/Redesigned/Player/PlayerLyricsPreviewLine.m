@@ -114,7 +114,7 @@ void SGRPreviewLineSetLift(UIView *line, CGFloat lift) {
 CGFloat SGRPreviewLineRest(void) {
     CGFloat chosen = SGRLyricsSizeFor(SGRLyricsPlacePreview);
     CGFloat size = chosen > 0 ? chosen : MIN(SGRLyricsLookNow().size, kMaxFont);
-    BOOL both = SGFlag(SGKeyLyricsRomanised, NO) && SGInt(SGKeyLyricsRomanisedMode, 0) != 1;
+    BOOL both = SGFlag(SGKeyLyricsRomanised, NO) && !SGFlag(SGKeyLyricsRomanisedReplace, NO);
     return kTopRoom + ceil(size * 1.3 * (both ? 1.8 : 1));
 }
 

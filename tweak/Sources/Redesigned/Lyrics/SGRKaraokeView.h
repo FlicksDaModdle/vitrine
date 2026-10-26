@@ -19,8 +19,9 @@ void SGRKaraokeTranslateNow(void);
 - (instancetype)initWithSampleLines:(NSArray<SGKaraokeLine *> *)lines length:(NSInteger)length;
 // Hides Spotify's own lyrics next to this view while it has lyrics to show, and brings them back when not.
 - (void)syncSiblings;
-// Called as a finger starts to scroll the lines, for a host that hides its controls then.
-@property (nonatomic, copy) void (^browsingBegan)(void);
+// Called as a finger starts to scroll the lines, for a host that hides its controls then. `onward` is a finger
+// moving up, toward the lines still to come.
+@property (nonatomic, copy) void (^browsingBegan)(BOOL onward);
 // The pronunciation and translation button goes with the host's controls when they are hidden, and Sing's
 // mic with it unless keepsSing is set.
 @property (nonatomic) BOOL extrasHidden;
@@ -36,4 +37,11 @@ void SGRKaraokeTranslateNow(void);
 // The place it shows in (Redesigned/Lyrics/LyricsLook.h's SGRLyricsPlace): its words take that place's size where
 // one is chosen, and follow a change of it at once. 0 for none, the look's size.
 @property (nonatomic) NSInteger sizePlace;
+// How far down a tap on the lines seeks, from the view's top; 0 is all the way. Below it, and above
+// seeksBelow, the tap is the host's (the player's lines on their own, over the controls that faded).
+@property (nonatomic) CGFloat seeksAbove;
+@property (nonatomic) CGFloat seeksBelow;
+// Whether a tap at point, in the view, seeks: on a timed line, inside the seeking band, and not on the credit
+// or a line's explain bubble.
+- (BOOL)tapSeeksAt:(CGPoint)point;
 @end
