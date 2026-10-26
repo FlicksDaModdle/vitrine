@@ -139,11 +139,13 @@ jobs:
       - name: make release
         env:
           BUNDLE_ID: ${{ inputs.bundle_id }}
+          # On past a file that fails, so one run shows every file's errors.
+          MAKEFLAGS: -k
         run: |
           set -o pipefail
           make release 2>&1 | tee build.log || {
             # The compiler's errors as annotations, so they show on the run's page without opening the log.
-            grep -E "error:|Error [0-9]" build.log | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+            grep -E "error:" build.log | sort -u | head -40 | while IFS= read -r line; do echo "::error::$line"; done
             exit 1
           }
 

@@ -82,7 +82,7 @@ NSString *SGLyricsRomanised(NSString *text, BOOL japanese) {
     NSString *tamil = kana ? nil : SGTamilReading(text);
     NSString *indic = kana ? nil : SGIndicReading(tamil ?: text);
     NSString *native = indic ?: tamil;
-    if (native && !has(native, @"[\\p{L}&&[^\\p{Latin}]]")) {
+    if (native && !has(native, SGScriptNotLatin)) {
         romanised = [native stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
         if ([romanised caseInsensitiveCompare:text] == NSOrderedSame) romanised = @"";
         [kept setObject:romanised forKey:key];
